@@ -3,12 +3,13 @@ import random
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
+from typing import Any
+from fastapi import Body
 
 app = FastAPI(title="AI Operations Command Center Backend")
 
@@ -20,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+frontend_path = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -202,11 +203,18 @@ def get_history():
 # ==========================================================
 
 @app.post("/api/tontrac/tickets")
-async def receive_tontrac_tickets(request: Request):
-    try:
-        payload = await request.json()
+async def receive_tontrac_tickets(payload: Any = Body(...)):
+    """
+    Receive weighbridge tickets pushed from TonTrac.
 
-        # Support both a single ticket and a batch of tickets
+    Supports:
+    - Single ticket (JSON object)
+    - Batch of tickets (JSON array)
+    """
+
+    try:
+
+        # Support both a single ticket and a batch
         if isinstance(payload, dict):
             tickets = [payload]
         elif isinstance(payload, list):
@@ -232,13 +240,7 @@ async def receive_tontrac_tickets(request: Request):
             print(f"Product   : {ticket.get('ProductName')}")
             print(f"Net Weight: {ticket.get('NettWeightKgs')} kg")
 
-        print("======================================================\n")
-
-        # Future enhancements:
-        # - Save to database
-        # - Broadcast to dashboard
-        # - Run AI analysis
-        # - Generate alerts
+        print("=======================================================\n")
 
         return JSONResponse(
             status_code=200,

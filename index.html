@@ -91,7 +91,7 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <!-- Babel Standalone for JSX — react preset ONLY (no "env" preset, which breaks UMD globals) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -133,6 +133,6 @@
     where React/ReactDOM are already available as window globals.
     The "react" preset only transforms JSX, which is all we need here.
   -->
-  <script type="text/babel" data-presets="react" src="/static/app.js"></script>
+  <script type="text/babel" data-presets="react" data-type="module" src="/static/app.js"></script>
 </body>
 </html>
