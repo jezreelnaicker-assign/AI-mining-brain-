@@ -3,6 +3,9 @@
 // React 18, Tailwind CSS, Canvas simulators + HLS video player
 // ============================================================
 
+const AUTH_STORAGE_KEY = 'pmg_ops_authenticated';
+const DASHBOARD_PASSWORD = '14mo17z!';
+
 // ─── INLINE SVG ICON LIBRARY ────────────────────────────────
 const Icons = {
   Overview: () => (
@@ -76,6 +79,22 @@ const Icons = {
     <span className="relative flex h-2 w-2 mr-2">
       <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
     </span>
+  ),
+  Lock: ({ className = "w-6 h-6" }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z" />
+    </svg>
+  ),
+  Eye: () => (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  EyeOff: () => (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21m-6.878-6.878l3.242 3.243" />
+    </svg>
   )
 };
 
@@ -161,8 +180,8 @@ const HLSPlayer = ({ url, systemName }) => {
     <div className="relative w-full h-full bg-black flex items-center justify-center">
       {loading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-slate-950/80">
-          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p className="text-cyan-400 font-mono text-xs">CONNECTING TO STREAM...</p>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <p className="text-emerald-400 font-mono text-xs">CONNECTING TO STREAM...</p>
           <p className="text-slate-500 font-mono text-[10px] mt-1">{url}</p>
         </div>
       )}
@@ -172,7 +191,7 @@ const HLSPlayer = ({ url, systemName }) => {
           <div className="text-slate-400 font-mono text-xs text-center max-w-sm px-4">{error}</div>
           <div className="mt-4 text-slate-600 font-mono text-[10px] text-center max-w-xs px-4">
             Make sure MediaMTX is running and OBS is streaming to:<br/>
-            <span className="text-cyan-600">{url}</span>
+            <span className="text-emerald-600">{url}</span>
           </div>
         </div>
       )}
@@ -209,6 +228,96 @@ const IframePlayer = ({ url, systemName }) => {
           title={systemName}
         />
       )}
+    </div>
+  );
+};
+
+// ─── PASSWORD GATE ───────────────────────────────────────────
+const PasswordGate = ({ onUnlock }) => {
+  const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [shake, setShake] = React.useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (password === DASHBOARD_PASSWORD) {
+      try { sessionStorage.setItem(AUTH_STORAGE_KEY, 'true'); } catch (e) {}
+      setError('');
+      onUnlock();
+    } else {
+      setError('Incorrect password. Please try again.');
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+    }
+  };
+
+  return (
+    <div className="h-full w-full flex items-center justify-center bg-gray-50 relative overflow-hidden">
+      {/* subtle background texture */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(15,23,42,0.06) 1px, transparent 0)',
+        backgroundSize: '28px 28px'
+      }}></div>
+      <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-100 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
+      <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-50 rounded-full blur-3xl opacity-70 pointer-events-none"></div>
+
+      <div className={`relative w-full max-w-sm mx-4 ${shake ? 'animate-[shake_0.4s]' : ''}`}>
+        <style>{`@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }`}</style>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+          <div className="px-8 pt-8 pb-6 flex flex-col items-center border-b border-gray-100">
+            <img
+              src="/static/pmg.logo.png"
+              alt="Company Logo"
+              className="h-14 w-auto object-contain mb-5"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            <div className="w-11 h-11 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-3">
+              <Icons.Lock />
+            </div>
+            <h1 className="text-base font-bold text-gray-800 tracking-wide font-display uppercase">Restricted Access</h1>
+            <p className="text-xs text-gray-400 font-mono mt-1 tracking-wide text-center">Mining Operations Command Center</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4">
+            <div>
+              <label className="block text-[11px] font-mono tracking-wide text-gray-500 uppercase mb-2">Access Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
+                  placeholder="Enter password"
+                  autoFocus
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-gray-800 rounded-lg pl-4 pr-11 py-2.5 text-sm outline-none transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <Icons.EyeOff /> : <Icons.Eye />}
+                </button>
+              </div>
+              {error && (
+                <p className="text-red-600 text-xs mt-2 font-medium">{error}</p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm transition"
+            >
+              Access Dashboard
+            </button>
+          </form>
+
+          <div className="px-8 pb-6 text-center">
+            <p className="text-[10px] text-gray-400 font-mono tracking-wide">SECURE OPERATOR LOGIN // AUTHORIZED PERSONNEL ONLY</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -281,24 +390,24 @@ const App = () => {
   };
 
   return (
-    <div className="flex h-full w-full bg-slate-950 font-sans overflow-hidden">
+    <div className="flex h-full w-full bg-gray-50 font-sans overflow-hidden">
       <Sidebar systems={systems} selectedSystem={selectedSystem} setSelectedSystem={setSelectedSystem} wsConnected={wsConnected} />
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="h-14 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between px-6 z-10 shrink-0">
+        <header className="h-14 border-b border-gray-200 bg-white/90 backdrop-blur flex items-center justify-between px-6 z-10 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-2.5 h-2.5 bg-cyan-500 rounded-sm shadow-[0_0_8px_rgba(6,182,212,0.6)] animate-pulse"></div>
-            <h1 className="text-lg font-semibold tracking-wider font-display text-slate-100 uppercase">AI Operations Command Center</h1>
+            <div className="w-2.5 h-2.5 bg-emerald-600 rounded-sm shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></div>
+            <h1 className="text-lg font-semibold tracking-wider font-display text-gray-800 uppercase">AI Operations Command Center</h1>
           </div>
           <div className="flex items-center space-x-6">
-            <div className="flex items-center text-xs text-slate-400 bg-slate-900/60 py-1 px-3 rounded-full border border-slate-800">
+            <div className="flex items-center text-xs text-gray-500 bg-gray-100 py-1 px-3 rounded-full border border-gray-200">
               {wsConnected ? <Icons.Connected /> : <Icons.Disconnected />}
               <span className="font-mono tracking-wide">{wsConnected ? "STREAM STABLE" : "DISCONNECTED"}</span>
             </div>
-            <button onClick={handleClearLogs} className="text-xs font-semibold px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition">Clear Logs</button>
+            <button onClick={handleClearLogs} className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">Clear Logs</button>
           </div>
         </header>
         <div className="flex-1 flex overflow-hidden min-h-0">
-          <div className="flex-1 flex flex-col p-4 bg-[#070d16] border-r border-slate-900 overflow-y-auto">
+          <div className="flex-1 flex flex-col p-4 bg-gray-50 border-r border-gray-200 overflow-y-auto">
             {selectedSystem === 'overview' ? (
               <OverviewDashboard systems={systems} alerts={alerts} aiAnalysis={aiAnalysis} setSelectedSystem={setSelectedSystem} />
             ) : (
@@ -324,23 +433,28 @@ const App = () => {
 const Sidebar = ({ systems, selectedSystem, setSelectedSystem, wsConnected }) => {
   const systemKeys = ['abcotronics', 'tontrac', 'weighbridge_camera', 'nimbus', 'sde', 'bidtrack'];
   return (
-    <div className="w-64 border-r border-slate-900 bg-slate-950 flex flex-col h-full shrink-0">
-      <div className="p-6 border-b border-slate-900 shrink-0">
+    <div className="w-64 border-r border-gray-200 bg-white flex flex-col h-full shrink-0">
+      <div className="p-5 border-b border-gray-200 shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded bg-gradient-to-tr from-cyan-600 to-emerald-500 flex items-center justify-center font-display text-white font-bold text-lg shadow-[0_0_15px_rgba(6,182,212,0.4)]">Ω</div>
-          <div>
-            <h2 className="font-semibold text-slate-200 text-sm tracking-wide">MINERALS OPS</h2>
-            <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Autonomous Core</p>
+          <img
+            src="/static/pmg.logo.png"
+            alt="Company Logo"
+            className="h-10 w-auto object-contain shrink-0"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div className="min-w-0">
+            <h2 className="font-semibold text-gray-800 text-sm tracking-wide truncate">MINERALS OPS</h2>
+            <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">Autonomous Core</p>
           </div>
         </div>
       </div>
       <div className="flex-1 py-4 overflow-y-auto px-3 space-y-1">
-        <button onClick={() => setSelectedSystem('overview')} className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-semibold tracking-wide transition duration-150 ${selectedSystem === 'overview' ? 'bg-slate-900 border border-slate-800 text-cyan-400' : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200'}`}>
-          <span className={`mr-3 ${selectedSystem === 'overview' ? 'text-cyan-400' : 'text-slate-500'}`}><Icons.Overview /></span>
+        <button onClick={() => setSelectedSystem('overview')} className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-semibold tracking-wide transition duration-150 ${selectedSystem === 'overview' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
+          <span className={`mr-3 ${selectedSystem === 'overview' ? 'text-emerald-600' : 'text-gray-400'}`}><Icons.Overview /></span>
           <span className="font-display uppercase tracking-wider text-xs">Operations Overview</span>
         </button>
-        <div className="h-px bg-slate-900 my-4"></div>
-        <div className="px-3 mb-2"><p className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">Operational Units</p></div>
+        <div className="h-px bg-gray-200 my-4"></div>
+        <div className="px-3 mb-2"><p className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Operational Units</p></div>
         {systemKeys.map((key) => {
           const sys = systems[key];
           if (!sys) return null;
@@ -348,20 +462,20 @@ const Sidebar = ({ systems, selectedSystem, setSelectedSystem, wsConnected }) =>
           const isOnline = sys.status === 'online';
           const mode = detectStreamMode(sys.stream_url);
           return (
-            <button key={key} onClick={() => setSelectedSystem(key)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition duration-150 ${isSelected ? 'bg-slate-900 border border-slate-800 text-cyan-400 font-bold' : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200'}`}>
+            <button key={key} onClick={() => setSelectedSystem(key)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition duration-150 ${isSelected ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
               <div className="flex items-center">
-                <span className={`mr-3 ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`}>{getSystemIcon(key)}</span>
+                <span className={`mr-3 ${isSelected ? 'text-emerald-600' : 'text-gray-400'}`}>{getSystemIcon(key)}</span>
                 <div className="text-left">
                   <span className="font-display uppercase tracking-wider text-xs block">{sys.name}</span>
-                  {mode !== 'simulation' && <span className="text-[9px] text-emerald-400 font-mono">● LIVE</span>}
+                  {mode !== 'simulation' && <span className="text-[9px] text-emerald-600 font-mono">● LIVE</span>}
                 </div>
               </div>
-              <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]'}`}></span>
+              <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]'}`}></span>
             </button>
           );
         })}
       </div>
-      <div className="p-4 border-t border-slate-900 text-[10px] font-mono text-slate-600 bg-slate-950/40 shrink-0">
+      <div className="p-4 border-t border-gray-200 text-[10px] font-mono text-gray-400 bg-gray-50 shrink-0">
         <div>CORE OS: v4.81.2-ALPHA</div>
         <div>SYS CLK: {new Date().toLocaleDateString()}</div>
       </div>
@@ -374,7 +488,7 @@ const ScreenMirror = ({ system, alerts, onReconnect, onConfigClick }) => {
   const containerRef = React.useRef(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
-  if (!system) return <div className="text-slate-400 font-mono">Loading system stream...</div>;
+  if (!system) return <div className="text-gray-500 font-mono">Loading system stream...</div>;
 
   const streamMode = detectStreamMode(system.stream_url);
 
@@ -394,38 +508,38 @@ const ScreenMirror = ({ system, alerts, onReconnect, onConfigClick }) => {
   };
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col bg-slate-950 rounded-lg overflow-hidden border border-slate-900 shadow-2xl relative">
+    <div ref={containerRef} className="flex-1 flex flex-col bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm relative">
       {/* Header bar */}
-      <div className="bg-slate-950 px-4 py-3 border-b border-slate-900 flex justify-between items-center shrink-0 z-10">
+      <div className="bg-white px-4 py-3 border-b border-gray-200 flex justify-between items-center shrink-0 z-10">
         <div>
-          <div className="text-xs font-mono text-slate-500 flex items-center space-x-2">
+          <div className="text-xs font-mono text-gray-500 flex items-center space-x-2">
             <span>{system.stream_type}</span>
             <span>•</span>
             <span className="truncate max-w-[220px]" title={system.stream_url}>{system.stream_url}</span>
             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-              streamMode === 'hls' ? 'bg-emerald-900/60 text-emerald-400' :
-              streamMode === 'iframe' ? 'bg-blue-900/60 text-blue-400' :
-              'bg-slate-800 text-slate-500'
+              streamMode === 'hls' ? 'bg-emerald-100 text-emerald-700' :
+              streamMode === 'iframe' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-500'
             }`}>
               {streamMode === 'hls' ? 'HLS LIVE' : streamMode === 'iframe' ? 'WEB EMBED' : 'SIMULATION'}
             </span>
           </div>
-          <h3 className="text-sm font-semibold tracking-wider text-slate-200 uppercase font-display">{system.name} Stream Mirror</h3>
+          <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase font-display">{system.name} Stream Mirror</h3>
         </div>
         <div className="flex items-center space-x-2">
-          <button onClick={onReconnect} className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition">
+          <button onClick={onReconnect} className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">
             <Icons.Refresh /><span>Reconnect</span>
           </button>
-          <button onClick={onConfigClick} className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition">
+          <button onClick={onConfigClick} className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">
             <Icons.Settings /><span>Source</span>
           </button>
-          <button onClick={toggleFullscreen} className="p-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition">
+          <button onClick={toggleFullscreen} className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">
             <Icons.Fullscreen />
           </button>
         </div>
       </div>
 
-      {/* Stream content area */}
+      {/* Stream content area (left dark, matches native camera/monitor feed convention) */}
       <div className="flex-1 relative overflow-hidden bg-[#020508]">
         {streamMode === 'hls' && <HLSPlayer url={system.stream_url} systemName={system.name} />}
         {streamMode === 'iframe' && <IframePlayer url={system.stream_url} systemName={system.name} />}
@@ -436,6 +550,8 @@ const ScreenMirror = ({ system, alerts, onReconnect, onConfigClick }) => {
 };
 
 // ─── CANVAS SIMULATOR ────────────────────────────────────────
+// NOTE: left unchanged per instructions to not touch streaming/camera functionality —
+// this renders the simulated live feed exactly as before.
 const CanvasSimulator = ({ system, alerts }) => {
   const canvasRef = React.useRef(null);
   const isOnline = system.status === 'online';
@@ -617,35 +733,32 @@ const OverviewDashboard = ({ systems, alerts, aiAnalysis, setSelectedSystem }) =
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: 'SYS INTEGRITY', value: '100% SECURE', icon: 'shield', color: 'cyan' },
-        ].map(() => null)}
-        <div className="glass-panel p-5 rounded-lg border border-slate-800 flex items-center space-x-4">
-          <div className="p-3 bg-cyan-950 text-cyan-400 rounded-lg">
+        <div className="glass-panel p-5 rounded-lg border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           </div>
-          <div><div className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">SYS INTEGRITY</div><div className="text-xl font-bold font-display text-slate-200">100% SECURE</div></div>
+          <div><div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">SYS INTEGRITY</div><div className="text-xl font-bold font-display text-gray-800">100% SECURE</div></div>
         </div>
-        <div className="glass-panel p-5 rounded-lg border border-slate-800 flex items-center space-x-4">
-          <div className={`p-3 rounded-lg ${activeAlerts.length > 0 ? 'bg-red-950 text-red-400 animate-pulse-slow' : 'bg-slate-900 text-slate-400'}`}><Icons.Alert className="w-6 h-6" /></div>
-          <div><div className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">ACTIVE ALERTS</div><div className={`text-xl font-bold font-display ${activeAlerts.length > 0 ? 'text-red-400' : 'text-slate-200'}`}>{activeAlerts.length} TRIGGERED</div></div>
+        <div className="glass-panel p-5 rounded-lg border border-gray-200 flex items-center space-x-4">
+          <div className={`p-3 rounded-lg ${activeAlerts.length > 0 ? 'bg-red-50 text-red-600 animate-pulse-slow' : 'bg-gray-100 text-gray-400'}`}><Icons.Alert className="w-6 h-6" /></div>
+          <div><div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">ACTIVE ALERTS</div><div className={`text-xl font-bold font-display ${activeAlerts.length > 0 ? 'text-red-600' : 'text-gray-800'}`}>{activeAlerts.length} TRIGGERED</div></div>
         </div>
-        <div className="glass-panel p-5 rounded-lg border border-slate-800 flex items-center space-x-4">
-          <div className="p-3 bg-purple-950 text-purple-400 rounded-lg">
+        <div className="glass-panel p-5 rounded-lg border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
           </div>
-          <div><div className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">AI INSIGHTS</div><div className="text-xl font-bold font-display text-slate-200">{aiAnalysis.length} LOGGED</div></div>
+          <div><div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">AI INSIGHTS</div><div className="text-xl font-bold font-display text-gray-800">{aiAnalysis.length} LOGGED</div></div>
         </div>
-        <div className="glass-panel p-5 rounded-lg border border-slate-800 flex items-center space-x-4">
-          <div className="p-3 bg-emerald-950 text-emerald-400 rounded-lg">
+        <div className="glass-panel p-5 rounded-lg border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.07 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
           </div>
-          <div><div className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">ONLINE FEEDS</div><div className="text-xl font-bold font-display text-slate-200">{keys.filter(k => systems[k]?.status === 'online').length} / {keys.length} ACTIVE</div></div>
+          <div><div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">ONLINE FEEDS</div><div className="text-xl font-bold font-display text-gray-800">{keys.filter(k => systems[k]?.status === 'online').length} / {keys.length} ACTIVE</div></div>
         </div>
       </div>
 
       <div>
-        <div className="flex items-center mb-4"><h3 className="text-xs font-mono tracking-widest text-slate-400 uppercase">System Status</h3><span className="h-px bg-slate-900 flex-1 mx-4"></span></div>
+        <div className="flex items-center mb-4"><h3 className="text-xs font-mono tracking-widest text-gray-500 uppercase">System Status</h3><span className="h-px bg-gray-200 flex-1 mx-4"></span></div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {keys.map((key) => {
             const sys = systems[key];
@@ -654,42 +767,42 @@ const OverviewDashboard = ({ systems, alerts, aiAnalysis, setSelectedSystem }) =
             const sysAlerts = alerts.filter(a => a.system_id === key && a.severity !== 'info').length;
             const mode = detectStreamMode(sys.stream_url);
             return (
-              <div key={key} onClick={() => setSelectedSystem(key)} className={`glass-panel p-5 rounded-lg border transition duration-200 cursor-pointer hover:-translate-y-0.5 ${isOnline ? 'border-slate-900 hover:border-slate-800' : 'border-red-950 bg-red-950/5'}`}>
+              <div key={key} onClick={() => setSelectedSystem(key)} className={`glass-panel p-5 rounded-lg border transition duration-200 cursor-pointer hover:-translate-y-0.5 ${isOnline ? 'border-gray-200 hover:border-emerald-300' : 'border-red-200 bg-red-50/40'}`}>
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center space-x-2.5">
-                    <span className={isOnline ? 'text-cyan-400' : 'text-red-400'}>{getSystemIcon(key)}</span>
-                    <h4 className="font-semibold text-slate-200 text-sm uppercase font-display">{sys.name}</h4>
+                    <span className={isOnline ? 'text-emerald-600' : 'text-red-500'}>{getSystemIcon(key)}</span>
+                    <h4 className="font-semibold text-gray-800 text-sm uppercase font-display">{sys.name}</h4>
                   </div>
                   <div className="flex items-center space-x-1.5">
-                    {mode !== 'simulation' && <span className="px-1.5 py-0.5 bg-emerald-900/40 text-emerald-400 text-[9px] font-mono rounded">LIVE</span>}
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-semibold ${isOnline ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-900/40' : 'bg-red-950/60 text-red-400 border border-red-900/40'}`}>{isOnline ? "ONLINE" : "OFFLINE"}</span>
+                    {mode !== 'simulation' && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-mono rounded">LIVE</span>}
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-semibold ${isOnline ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-600 border border-red-200'}`}>{isOnline ? "ONLINE" : "OFFLINE"}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono border-t border-slate-900/60 pt-3">
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono border-t border-gray-100 pt-3">
                   {Object.entries(sys.metrics || {}).slice(0, 2).map(([k, val]) => (
-                    <div key={k}><div className="uppercase text-[9px] text-slate-600">{k.replace(/_/g, ' ')}</div><div className="text-slate-300 font-semibold">{val}</div></div>
+                    <div key={k}><div className="uppercase text-[9px] text-gray-400">{k.replace(/_/g, ' ')}</div><div className="text-gray-700 font-semibold">{val}</div></div>
                   ))}
                 </div>
                 {sysAlerts > 0 ? (
-                  <div className="mt-3 flex items-center space-x-1.5 text-xs text-amber-400 bg-amber-950/20 py-1.5 px-2.5 rounded border border-amber-950/50">
+                  <div className="mt-3 flex items-center space-x-1.5 text-xs text-amber-700 bg-amber-50 py-1.5 px-2.5 rounded border border-amber-200">
                     <Icons.Alert className="w-3.5 h-3.5" /><span>{sysAlerts} active warnings</span>
                   </div>
-                ) : <div className="mt-3 text-[10px] text-slate-600 font-mono">✓ No anomalies flagged</div>}
+                ) : <div className="mt-3 text-[10px] text-gray-400 font-mono">✓ No anomalies flagged</div>}
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="glass-panel p-5 rounded-lg border border-slate-900">
-        <h4 className="text-xs font-mono tracking-widest text-slate-400 uppercase mb-4">Latest AI Observations</h4>
+      <div className="glass-panel p-5 rounded-lg border border-gray-200">
+        <h4 className="text-xs font-mono tracking-widest text-gray-500 uppercase mb-4">Latest AI Observations</h4>
         <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
           {aiAnalysis.length > 0 ? aiAnalysis.slice(0, 5).map((item) => (
-            <div key={item.id} className="flex justify-between items-start text-xs border-b border-slate-900/60 pb-2.5 last:border-none">
-              <div><span className="font-bold text-cyan-400 uppercase mr-2">[{item.system_name}]</span><span className="text-slate-300">{item.insight}</span></div>
-              <span className="text-[10px] text-slate-500 font-mono ml-4">{item.timestamp}</span>
+            <div key={item.id} className="flex justify-between items-start text-xs border-b border-gray-100 pb-2.5 last:border-none">
+              <div><span className="font-bold text-emerald-700 uppercase mr-2">[{item.system_name}]</span><span className="text-gray-700">{item.insight}</span></div>
+              <span className="text-[10px] text-gray-400 font-mono ml-4">{item.timestamp}</span>
             </div>
-          )) : <div className="text-xs text-slate-500 font-mono py-2">Waiting for AI telemetry...</div>}
+          )) : <div className="text-xs text-gray-400 font-mono py-2">Waiting for AI telemetry...</div>}
         </div>
       </div>
     </div>
@@ -701,11 +814,11 @@ const RightPanel = ({ activeTab, setActiveTab, alerts, aiAnalysis, activityFeed,
   const fA = selectedSystem === 'overview' ? alerts : alerts.filter(a => a.system_id === selectedSystem);
   const fAI = selectedSystem === 'overview' ? aiAnalysis : aiAnalysis.filter(a => a.system_id === selectedSystem);
   const fAct = selectedSystem === 'overview' ? activityFeed : activityFeed.filter(a => a.system_id === selectedSystem);
-  const sev = (s) => ({ critical: 'bg-red-950/40 border-red-900/40 text-red-400', error: 'bg-red-950/20 border-red-950/40 text-red-300', warning: 'bg-amber-950/20 border-amber-900/40 text-amber-400', info: 'bg-cyan-950/20 border-cyan-950/40 text-cyan-400' }[s] || 'bg-slate-900/60 border-slate-800 text-slate-300');
-  const tc = (t) => `py-3.5 text-xs font-semibold tracking-wide border-b-2 transition font-display uppercase ${activeTab === t ? 'border-cyan-500 text-cyan-400 bg-slate-900/20' : 'border-transparent text-slate-400 hover:text-slate-200'}`;
+  const sev = (s) => ({ critical: 'bg-red-50 border-red-200 text-red-700', error: 'bg-red-50 border-red-100 text-red-600', warning: 'bg-amber-50 border-amber-200 text-amber-700', info: 'bg-emerald-50 border-emerald-200 text-emerald-700' }[s] || 'bg-gray-100 border-gray-200 text-gray-700');
+  const tc = (t) => `py-3.5 text-xs font-semibold tracking-wide border-b-2 transition font-display uppercase ${activeTab === t ? 'border-emerald-600 text-emerald-700 bg-emerald-50/60' : 'border-transparent text-gray-500 hover:text-gray-800'}`;
   return (
-    <div className="w-80 border-l border-slate-900 bg-slate-950 flex flex-col h-full shrink-0">
-      <div className="grid grid-cols-3 border-b border-slate-900 shrink-0">
+    <div className="w-80 border-l border-gray-200 bg-white flex flex-col h-full shrink-0">
+      <div className="grid grid-cols-3 border-b border-gray-200 shrink-0">
         <button onClick={() => setActiveTab('alerts')} className={tc('alerts')}>Alerts {fA.length > 0 && `(${fA.length})`}</button>
         <button onClick={() => setActiveTab('analysis')} className={tc('analysis')}>AI Analysis</button>
         <button onClick={() => setActiveTab('activity')} className={tc('activity')}>Activity</button>
@@ -716,23 +829,23 @@ const RightPanel = ({ activeTab, setActiveTab, alerts, aiAnalysis, activityFeed,
             <div className="flex justify-between mb-1"><span className="font-bold font-display uppercase">{a.system_name}</span><span className="font-mono text-[9px] opacity-60">{a.timestamp}</span></div>
             <p>{a.message}</p>
           </div>
-        )) : <div className="text-xs text-slate-500 font-mono py-8 text-center">No active warnings</div>)}
+        )) : <div className="text-xs text-gray-400 font-mono py-8 text-center">No active warnings</div>)}
         {activeTab === 'analysis' && (fAI.length > 0 ? fAI.map(i => (
-          <div key={i.id} className="p-3 bg-slate-900/40 rounded border border-slate-900/80 text-xs">
-            <div className="flex justify-between mb-2"><span className="px-2 py-0.5 bg-purple-950/60 text-purple-400 border border-purple-900/30 rounded text-[9px] font-mono uppercase">{i.category}</span><span className="font-mono text-[9px] text-slate-500">{i.timestamp}</span></div>
-            <div className="text-[10px] uppercase font-mono text-slate-500 mb-1">[{i.system_name}]</div>
-            <p className="text-slate-200">{i.insight}</p>
+          <div key={i.id} className="p-3 bg-gray-50 rounded border border-gray-200 text-xs">
+            <div className="flex justify-between mb-2"><span className="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-mono uppercase">{i.category}</span><span className="font-mono text-[9px] text-gray-400">{i.timestamp}</span></div>
+            <div className="text-[10px] uppercase font-mono text-gray-400 mb-1">[{i.system_name}]</div>
+            <p className="text-gray-800">{i.insight}</p>
           </div>
-        )) : <div className="text-xs text-slate-500 font-mono py-8 text-center">No AI logs yet</div>)}
+        )) : <div className="text-xs text-gray-400 font-mono py-8 text-center">No AI logs yet</div>)}
         {activeTab === 'activity' && (
-          <div className="relative border-l border-slate-900 pl-4 space-y-4 py-2 ml-1">
+          <div className="relative border-l border-gray-200 pl-4 space-y-4 py-2 ml-1">
             {fAct.length > 0 ? fAct.map(a => (
               <div key={a.id} className="relative text-xs">
-                <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-800 border-2 border-slate-950"></div>
-                <div className="text-slate-500 font-mono text-[9px] mb-0.5">{a.timestamp} • {a.system_name}</div>
-                <p className="text-slate-300">{a.message}</p>
+                <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-gray-300 border-2 border-white"></div>
+                <div className="text-gray-400 font-mono text-[9px] mb-0.5">{a.timestamp} • {a.system_name}</div>
+                <p className="text-gray-700">{a.message}</p>
               </div>
-            )) : <div className="text-xs text-slate-500 font-mono py-8">No activity yet</div>}
+            )) : <div className="text-xs text-gray-400 font-mono py-8">No activity yet</div>}
           </div>
         )}
       </div>
@@ -747,18 +860,18 @@ const ConfigModal = ({ system, onClose, onSave }) => {
   const mode = detectStreamMode(streamUrl);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="glass-panel w-full max-w-md rounded-lg overflow-hidden border border-slate-800 shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-          <h3 className="text-base font-bold font-display uppercase tracking-wider text-slate-200">Source Setup: {system.name}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200">
+    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white w-full max-w-md rounded-lg overflow-hidden border border-gray-200 shadow-2xl">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+          <h3 className="text-base font-bold font-display uppercase tracking-wider text-gray-800">Source Setup: {system.name}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-mono tracking-wide text-slate-500 uppercase mb-2">Stream Type</label>
-            <select value={streamType} onChange={e => setStreamType(e.target.value)} className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-slate-200 rounded px-3 py-2 text-sm focus:outline-none transition">
+            <label className="block text-xs font-mono tracking-wide text-gray-500 uppercase mb-2">Stream Type</label>
+            <select value={streamType} onChange={e => setStreamType(e.target.value)} className="w-full bg-white border border-gray-300 focus:border-emerald-500 text-gray-800 rounded px-3 py-2 text-sm focus:outline-none transition">
               <option value="OBS Stream">OBS Stream</option>
               <option value="WebRTC Stream">WebRTC Stream</option>
               <option value="Browser Dashboard">Browser Dashboard</option>
@@ -767,15 +880,15 @@ const ConfigModal = ({ system, onClose, onSave }) => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-mono tracking-wide text-slate-500 uppercase mb-2">Stream Source URL</label>
-            <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)} placeholder="http://localhost:8888/stream/index.m3u8" className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-slate-200 rounded px-3 py-2 text-sm focus:outline-none transition font-mono" />
+            <label className="block text-xs font-mono tracking-wide text-gray-500 uppercase mb-2">Stream Source URL</label>
+            <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)} placeholder="http://localhost:8888/stream/index.m3u8" className="w-full bg-white border border-gray-300 focus:border-emerald-500 text-gray-800 rounded px-3 py-2 text-sm focus:outline-none transition font-mono" />
           </div>
 
           {/* Live mode preview */}
           <div className={`p-3 rounded border text-xs font-mono ${
-            mode === 'hls' ? 'bg-emerald-950/30 border-emerald-900/40 text-emerald-400' :
-            mode === 'iframe' ? 'bg-blue-950/30 border-blue-900/40 text-blue-400' :
-            'bg-slate-900/60 border-slate-800 text-slate-500'
+            mode === 'hls' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+            mode === 'iframe' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+            'bg-gray-50 border-gray-200 text-gray-400'
           }`}>
             {mode === 'hls' && '● HLS LIVE STREAM — will play via video player'}
             {mode === 'iframe' && '● WEB EMBED — will load URL in iframe'}
@@ -783,16 +896,16 @@ const ConfigModal = ({ system, onClose, onSave }) => {
           </div>
 
           {mode === 'hls' && (
-            <div className="p-3 bg-slate-900/40 rounded border border-slate-800 text-[10px] font-mono text-slate-400 space-y-1">
-              <div className="text-slate-300 font-semibold mb-1">MediaMTX HLS URL format:</div>
-              <div>http://localhost:8888/<span className="text-cyan-400">streamkey</span>/index.m3u8</div>
-              <div className="text-slate-500">Make sure MediaMTX is running and OBS is streaming</div>
+            <div className="p-3 bg-gray-50 rounded border border-gray-200 text-[10px] font-mono text-gray-500 space-y-1">
+              <div className="text-gray-700 font-semibold mb-1">MediaMTX HLS URL format:</div>
+              <div>http://localhost:8888/<span className="text-emerald-700">streamkey</span>/index.m3u8</div>
+              <div className="text-gray-400">Make sure MediaMTX is running and OBS is streaming</div>
             </div>
           )}
 
-          <div className="flex justify-end space-x-3 pt-2 border-t border-slate-900">
-            <button onClick={onClose} className="px-4 py-2 rounded text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition">Cancel</button>
-            <button onClick={() => onSave(streamType, streamUrl)} className="px-4 py-2 rounded text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg transition">Save Configuration</button>
+          <div className="flex justify-end space-x-3 pt-2 border-t border-gray-200">
+            <button onClick={onClose} className="px-4 py-2 rounded text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">Cancel</button>
+            <button onClick={() => onSave(streamType, streamUrl)} className="px-4 py-2 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg transition">Save Configuration</button>
           </div>
         </div>
       </div>
@@ -800,7 +913,19 @@ const ConfigModal = ({ system, onClose, onSave }) => {
   );
 };
 
+// ─── AUTH WRAPPER ─────────────────────────────────────────────
+const AuthenticatedApp = () => {
+  const [authenticated, setAuthenticated] = React.useState(() => {
+    try { return sessionStorage.getItem(AUTH_STORAGE_KEY) === 'true'; } catch (e) { return false; }
+  });
+
+  if (!authenticated) {
+    return <PasswordGate onUnlock={() => setAuthenticated(true)} />;
+  }
+  return <App />;
+};
+
 // ─── MOUNT ────────────────────────────────────────────────────
 const rootElement = document.getElementById('root');
 const root = ReactDOM.createRoot(rootElement);
-root.render(<App />);
+root.render(<AuthenticatedApp />);
