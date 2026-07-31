@@ -110,120 +110,6 @@ const getSystemIcon = (id) => {
   }
 };
 
-// ─── SDE CAMERA DASHBOARD ────────────────────────────────────
-function SDECameraDashboard() {
-    const [cameras, setCameras] = React.useState([]);
-    const [filteredCameras, setFilteredCameras] = React.useState([]);
-    const [activeCam, setActiveCam] = React.useState(null);
-    const [searchQuery, setSearchQuery] = React.useState("");
-
-    React.useEffect(() => {
-        fetch('/api/cameras/streams')
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    setCameras(data.cameras);
-                    setFilteredCameras(data.cameras);
-                    if (data.cameras.length > 0) {
-                        setActiveCam(data.cameras[0]);
-                    }
-                }
-            })
-            .catch(err => console.error("Error loading cameras:", err));
-    }, []);
-
-    const handleSearch = (e) => {
-        const query = e.target.value.toLowerCase();
-        setSearchQuery(query);
-        const filtered = cameras.filter(c => 
-            c.name.toLowerCase().includes(query) || 
-            c.site.toLowerCase().includes(query) || 
-            c.ip.includes(query)
-        );
-        setFilteredCameras(filtered);
-    };
-
-    return (
-        <div className="h-full w-full grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-950 text-white overflow-hidden">
-            {/* Primary Monitor Section */}
-            <div className="lg:col-span-3 flex flex-col bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-xl">
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-bold font-display text-emerald-400">
-                        {activeCam ? `${activeCam.name} (Primary View)` : "Initializing Feed..."}
-                    </h3>
-                    <span className="text-xs font-mono bg-slate-800 text-cyan-400 px-3 py-1 rounded border border-slate-700">
-                        {activeCam ? activeCam.ip : "---.---.---.---"}
-                    </span>
-                </div>
-                <div className="flex-1 bg-black rounded-lg overflow-hidden flex items-center justify-center relative border border-slate-800">
-                    {activeCam ? (
-                        <video 
-                            key={activeCam.url}
-                            src={activeCam.url} 
-                            controls 
-                            autoPlay 
-                            muted 
-                            className="w-full h-full object-contain"
-                        />
-                    ) : (
-                        <div className="text-slate-500 font-mono text-sm">No Active Camera Selected</div>
-                    )}
-                </div>
-            </div>
-
-            {/* Sidebar Camera List & Search */}
-            <div className="lg:col-span-1 flex flex-col bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-xl overflow-hidden">
-                <div className="flex flex-col gap-3 mb-3">
-                    <div className="flex justify-between items-center">
-                        <h4 className="text-sm font-bold text-slate-300">All Site Feeds</h4>
-                        <span className="text-xs font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">
-                            {filteredCameras.length} Active
-                        </span>
-                    </div>
-                    <input 
-                        type="text" 
-                        placeholder="Filter by name, site or IP..." 
-                        value={searchQuery}
-                        onChange={handleSearch}
-                        className="bg-slate-950 border border-slate-800 text-xs text-white px-3 py-2 rounded focus:outline-none focus:border-emerald-500 font-mono"
-                    />
-                </div>
-
-                {/* Scrollable Thumbnails Grid */}
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                    {filteredCameras.map((cam) => {
-                        const isSelected = activeCam && activeCam.id === cam.id;
-                        return (
-                            <div 
-                                key={cam.id}
-                                onClick={() => setActiveCam(cam)}
-                                className={`p-2 rounded-md cursor-pointer border transition-all ${
-                                    isSelected 
-                                        ? 'bg-emerald-950/40 border-emerald-500 shadow-sm shadow-emerald-900/50' 
-                                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
-                                }`}
-                            >
-                                <div className="flex justify-between items-center text-[10px] font-mono mb-1">
-                                    <span className="text-cyan-400 font-semibold">{cam.site}</span>
-                                    <span className="text-slate-400">{cam.ip}</span>
-                                </div>
-                                <div className="text-xs font-bold text-slate-200 truncate mb-2">{cam.name}</div>
-                                <div className="h-16 bg-black rounded overflow-hidden relative border border-slate-800/80">
-                                    <video 
-                                        src={cam.url} 
-                                        muted 
-                                        className="w-full h-full object-cover pointer-events-none opacity-80"
-                                    />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── STREAM TYPE DETECTOR ────────────────────────────────────
 const detectStreamMode = (url) => {
   if (!url) return 'simulation';
@@ -280,7 +166,7 @@ const HLSPlayer = ({ url, systemName }) => {
       });
       hls.on(window.Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
-          setError('Stream connection failed — check MediaMTX is running and OBS is streaming');
+          setError('Stream connection failed — check MediaMTX is running and the tunnel URL is correct');
         }
       });
       return () => hls.destroy();
@@ -293,7 +179,7 @@ const HLSPlayer = ({ url, systemName }) => {
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-slate-950/80">
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
           <p className="text-emerald-400 font-mono text-xs">CONNECTING TO STREAM...</p>
-          <p className="text-slate-500 font-mono text-[10px] mt-1">{url}</p>
+          <p className="text-slate-500 font-mono text-[10px] mt-1 break-all px-4 text-center">{url}</p>
         </div>
       )}
       {error && (
@@ -337,6 +223,118 @@ const IframePlayer = ({ url, systemName }) => {
     </div>
   );
 };
+
+// ─── SDE CAMERA DASHBOARD ────────────────────────────────────
+// FIX: was using a raw <video src=...> tag, which cannot play .m3u8
+// (HLS) streams in Chrome/Edge/Firefox — only Safari supports that
+// natively. Now routes through HLSPlayer (hls.js), same as every
+// other camera tile on the dashboard. Thumbnails no longer try to
+// run 40+ simultaneous live video decoders — only the selected
+// camera actually decodes video; others are static tiles.
+function SDECameraDashboard() {
+    const [cameras, setCameras] = React.useState([]);
+    const [filteredCameras, setFilteredCameras] = React.useState([]);
+    const [activeCam, setActiveCam] = React.useState(null);
+    const [searchQuery, setSearchQuery] = React.useState("");
+
+    React.useEffect(() => {
+        fetch('/api/cameras/streams')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    setCameras(data.cameras);
+                    setFilteredCameras(data.cameras);
+                    if (data.cameras.length > 0) {
+                        setActiveCam(data.cameras[0]);
+                    }
+                }
+            })
+            .catch(err => console.error("Error loading cameras:", err));
+    }, []);
+
+    const handleSearch = (e) => {
+        const query = e.target.value.toLowerCase();
+        setSearchQuery(query);
+        const filtered = cameras.filter(c =>
+            c.name.toLowerCase().includes(query) ||
+            c.site.toLowerCase().includes(query) ||
+            c.ip.includes(query)
+        );
+        setFilteredCameras(filtered);
+    };
+
+    return (
+        <div className="h-full w-full grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 bg-slate-950 text-white overflow-hidden">
+            {/* Primary Monitor Section — uses HLSPlayer (hls.js), NOT a raw <video src> */}
+            <div className="lg:col-span-3 flex flex-col bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-xl">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-bold font-display text-emerald-400">
+                        {activeCam ? `${activeCam.name} (Primary View)` : "Initializing Feed..."}
+                    </h3>
+                    <span className="text-xs font-mono bg-slate-800 text-cyan-400 px-3 py-1 rounded border border-slate-700">
+                        {activeCam ? activeCam.ip : "---.---.---.---"}
+                    </span>
+                </div>
+                <div className="flex-1 bg-black rounded-lg overflow-hidden relative border border-slate-800">
+                    {activeCam ? (
+                        <HLSPlayer key={activeCam.url} url={activeCam.url} systemName={activeCam.name} />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-500 font-mono text-sm">No Active Camera Selected</div>
+                    )}
+                </div>
+            </div>
+
+            {/* Sidebar Camera List & Search — static tiles, no live video per row */}
+            <div className="lg:col-span-1 flex flex-col bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-xl overflow-hidden">
+                <div className="flex flex-col gap-3 mb-3">
+                    <div className="flex justify-between items-center">
+                        <h4 className="text-sm font-bold text-slate-300">All Site Feeds</h4>
+                        <span className="text-xs font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">
+                            {filteredCameras.length} Active
+                        </span>
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Filter by name, site or IP..."
+                        value={searchQuery}
+                        onChange={handleSearch}
+                        className="bg-slate-950 border border-slate-800 text-xs text-white px-3 py-2 rounded focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                    {filteredCameras.map((cam) => {
+                        const isSelected = activeCam && activeCam.id === cam.id;
+                        return (
+                            <div
+                                key={cam.id}
+                                onClick={() => setActiveCam(cam)}
+                                className={`p-2 rounded-md cursor-pointer border transition-all ${
+                                    isSelected
+                                        ? 'bg-emerald-950/40 border-emerald-500 shadow-sm shadow-emerald-900/50'
+                                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
+                                }`}
+                            >
+                                <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                                    <span className="text-cyan-400 font-semibold">{cam.site}</span>
+                                    <span className="text-slate-400">{cam.ip}</span>
+                                </div>
+                                <div className="text-xs font-bold text-slate-200 truncate mb-2">{cam.name}</div>
+                                <div className="h-16 bg-black rounded overflow-hidden relative border border-slate-800/80 flex items-center justify-center">
+                                    {isSelected ? (
+                                        <span className="text-[9px] font-mono text-emerald-400">● PLAYING ABOVE</span>
+                                    ) : (
+                                        <span className="text-[9px] font-mono text-slate-600">Click to view</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // ─── PASSWORD GATE ───────────────────────────────────────────
 const PasswordGate = ({ onUnlock }) => {
