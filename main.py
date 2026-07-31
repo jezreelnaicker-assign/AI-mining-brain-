@@ -261,61 +261,74 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
                 "message": str(ex)
             }
         )
+
+# ==========================================================
+# CCTV camera stream directory.
+#
+# TUNNEL_BASE is the ONLY thing you should need to change when
+# the Cloudflare quick-tunnel URL changes (which happens every
+# time cloudflared is restarted, since these free quick tunnels
+# don't have a fixed address). Every camera URL below is built
+# from this one variable.
+# ==========================================================
+TUNNEL_BASE = "https://favourites-powered-humanities-laser.trycloudflare.com"
+
 @app.get("/api/cameras/streams")
 async def get_camera_streams():
     cameras = [
         # --- Bultfontein Site ---
-        {"id": "bult-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": "https://smart-monkeys-kneel.loca.lt/cam1/index.m3u8"},
-        {"id": "bult-nvr01", "site": "BULTFONTEIN", "name": "PUC NVR01", "ip": "10.8.0.201", "url": "https://smart-monkeys-kneel.loca.lt/puc_nvr01/index.m3u8"},
-        {"id": "bult-nvr02", "site": "BULTFONTEIN", "name": "PUC NVR02", "ip": "10.8.0.202", "url": "https://smart-monkeys-kneel.loca.lt/puc_nvr02/index.m3u8"},
-        {"id": "bult-mhs-vf", "site": "BULTFONTEIN", "name": "PUC MHS VF", "ip": "10.8.2.1", "url": "https://smart-monkeys-kneel.loca.lt/puc_mhs_vf/index.m3u8"},
-        {"id": "bult-mhs-ptz", "site": "BULTFONTEIN", "name": "PUC MHS PTZ", "ip": "10.8.2.2", "url": "https://smart-monkeys-kneel.loca.lt/puc_mhs_ptz/index.m3u8"},
-        {"id": "bult-m1-d", "site": "BULTFONTEIN", "name": "PUC M1 D", "ip": "10.8.1.1", "url": "https://smart-monkeys-kneel.loca.lt/puc_m1_d/index.m3u8"},
-        {"id": "bult-m1-vf-l", "site": "BULTFONTEIN", "name": "PUC M1 VF L", "ip": "10.8.1.2", "url": "https://smart-monkeys-kneel.loca.lt/puc_m1_vf_l/index.m3u8"},
-        {"id": "bult-m1-vf-r", "site": "BULTFONTEIN", "name": "PUC M1 VF R", "ip": "10.8.1.3", "url": "https://smart-monkeys-kneel.loca.lt/puc_m1_vf_r/index.m3u8"},
-        {"id": "bult-m1-npr-l", "site": "BULTFONTEIN", "name": "PUC M1 NPR L", "ip": "10.8.1.4", "url": "https://smart-monkeys-kneel.loca.lt/puc_m1_npr_l/index.m3u8"},
-        {"id": "bult-m1-npr-r", "site": "BULTFONTEIN", "name": "PUC M1 NPR R", "ip": "10.8.1.5", "url": "https://smart-monkeys-kneel.loca.lt/puc_m1_npr_r/index.m3u8"},
-        {"id": "bult-m2-d", "site": "BULTFONTEIN", "name": "PUC M2 D", "ip": "10.8.1.6", "url": "https://smart-monkeys-kneel.loca.lt/puc_m2_d/index.m3u8"},
-        {"id": "bult-m2-vf-l", "site": "BULTFONTEIN", "name": "PUC M2 VF L", "ip": "10.8.1.7", "url": "https://smart-monkeys-kneel.loca.lt/puc_m2_vf_l/index.m3u8"},
-        {"id": "bult-m2-vf-r", "site": "BULTFONTEIN", "name": "PUC M2 VF R", "ip": "10.8.1.8", "url": "https://smart-monkeys-kneel.loca.lt/puc_m2_vf_r/index.m3u8"},
-        {"id": "bult-m2-npr-l", "site": "BULTFONTEIN", "name": "PUC M2 NPR L", "ip": "10.8.1.9", "url": "https://smart-monkeys-kneel.loca.lt/puc_m2_npr_l/index.m3u8"},
-        {"id": "bult-m2-npr-r", "site": "BULTFONTEIN", "name": "PUC M2 NPR R", "ip": "10.8.1.10", "url": "https://smart-monkeys-kneel.loca.lt/puc_m2_npr_r/index.m3u8"},
-        {"id": "bult-m3-d", "site": "BULTFONTEIN", "name": "PUC M3 D", "ip": "10.8.1.11", "url": "https://smart-monkeys-kneel.loca.lt/puc_m3_d/index.m3u8"},
-        {"id": "bult-m3-vf-l", "site": "BULTFONTEIN", "name": "PUC M3 VF L", "ip": "10.8.1.12", "url": "https://smart-monkeys-kneel.loca.lt/puc_m3_vf_l/index.m3u8"},
-        {"id": "bult-m3-vf-r", "site": "BULTFONTEIN", "name": "PUC M3 VF R", "ip": "10.8.1.13", "url": "https://smart-monkeys-kneel.loca.lt/puc_m3_vf_r/index.m3u8"},
-        {"id": "bult-m3-npr-l", "site": "BULTFONTEIN", "name": "PUC M3 NPR L", "ip": "10.8.1.14", "url": "https://smart-monkeys-kneel.loca.lt/puc_m3_npr_l/index.m3u8"},
-        {"id": "bult-m4-d", "site": "BULTFONTEIN", "name": "PUC M4 D", "ip": "10.8.1.16", "url": "https://smart-monkeys-kneel.loca.lt/puc_m4_d/index.m3u8"},
-        {"id": "bult-m4-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": "https://smart-monkeys-kneel.loca.lt/puc_m4_weighbridge_b/index.m3u8"},
-        {"id": "bult-m4-vf-l", "site": "BULTFONTEIN", "name": "PUC M4 VF L", "ip": "10.8.1.17", "url": "https://smart-monkeys-kneel.loca.lt/puc_m4_vf_l/index.m3u8"},
-        {"id": "bult-m4-vf-r", "site": "BULTFONTEIN", "name": "PUC M4 VF R", "ip": "10.8.1.18", "url": "https://smart-monkeys-kneel.loca.lt/puc_m4_vf_r/index.m3u8"},
-        {"id": "bult-m4-npr-l", "site": "BULTFONTEIN", "name": "PUC M4 NPR L", "ip": "10.8.1.19", "url": "https://smart-monkeys-kneel.loca.lt/puc_m4_npr_l/index.m3u8"},
-        {"id": "bult-m5-d", "site": "BULTFONTEIN", "name": "PUC M5 D", "ip": "10.8.1.21", "url": "https://smart-monkeys-kneel.loca.lt/puc_m5_d/index.m3u8"},
-        {"id": "bult-m5-ptz", "site": "BULTFONTEIN", "name": "PUC M5 PTZ", "ip": "10.8.1.25", "url": "https://smart-monkeys-kneel.loca.lt/puc_m5_ptz/index.m3u8"},
-        {"id": "bult-m6-d", "site": "BULTFONTEIN", "name": "PUC M6 D", "ip": "10.8.1.26", "url": "https://smart-monkeys-kneel.loca.lt/puc_m6_d/index.m3u8"},
-        {"id": "bult-m6-vf-l", "site": "BULTFONTEIN", "name": "PUC M6 VF L", "ip": "10.8.1.27", "url": "https://smart-monkeys-kneel.loca.lt/puc_m6_vf_l/index.m3u8"},
-        {"id": "bult-m6-vf-r", "site": "BULTFONTEIN", "name": "PUC M6 VF R", "ip": "10.8.1.28", "url": "https://smart-monkeys-kneel.loca.lt/puc_m6_vf_r/index.m3u8"},
-        {"id": "bult-m6-npr-l", "site": "BULTFONTEIN", "name": "PUC M6 NPR L", "ip": "10.8.1.29", "url": "https://smart-monkeys-kneel.loca.lt/puc_m6_npr_l/index.m3u8"},
-        {"id": "bult-m7-d", "site": "BULTFONTEIN", "name": "PUC M7 D", "ip": "10.8.1.31", "url": "https://smart-monkeys-kneel.loca.lt/puc_m7_d/index.m3u8"},
-        {"id": "bult-m7-lptz", "site": "BULTFONTEIN", "name": "PUC M7 LPTZ", "ip": "10.8.1.35", "url": "https://smart-monkeys-kneel.loca.lt/puc_m7_lptz/index.m3u8"},
-        {"id": "bult-m8-d", "site": "BULTFONTEIN", "name": "PUC M8 D", "ip": "10.8.1.36", "url": "https://smart-monkeys-kneel.loca.lt/puc_m8_d/index.m3u8"},
-        {"id": "bult-m8-lptz", "site": "BULTFONTEIN", "name": "PUC M8 LPTZ", "ip": "10.8.1.40", "url": "https://smart-monkeys-kneel.loca.lt/puc_m8_lptz/index.m3u8"},
-        {"id": "bult-m9-d", "site": "BULTFONTEIN", "name": "PUC M9 D", "ip": "10.8.1.41", "url": "https://smart-monkeys-kneel.loca.lt/puc_m9_d/index.m3u8"},
-        {"id": "bult-m9-lptz", "site": "BULTFONTEIN", "name": "PUC M9 LPTZ", "ip": "10.8.1.45", "url": "https://smart-monkeys-kneel.loca.lt/puc_m9_lptz/index.m3u8"},
-        {"id": "bult-m10-d", "site": "BULTFONTEIN", "name": "PUC M10 D", "ip": "10.8.1.46", "url": "https://smart-monkeys-kneel.loca.lt/puc_m10_d/index.m3u8"},
-        {"id": "bult-m10-lptz", "site": "BULTFONTEIN", "name": "PUC M10 LPTZ", "ip": "10.8.1.50", "url": "https://smart-monkeys-kneel.loca.lt/puc_m10_lptz/index.m3u8"},
+        {"id": "bult-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": f"{TUNNEL_BASE}/cam1/index.m3u8"},
+        {"id": "bult-nvr01", "site": "BULTFONTEIN", "name": "PUC NVR01", "ip": "10.8.0.201", "url": f"{TUNNEL_BASE}/puc_nvr01/index.m3u8"},
+        {"id": "bult-nvr02", "site": "BULTFONTEIN", "name": "PUC NVR02", "ip": "10.8.0.202", "url": f"{TUNNEL_BASE}/puc_nvr02/index.m3u8"},
+        {"id": "bult-mhs-vf", "site": "BULTFONTEIN", "name": "PUC MHS VF", "ip": "10.8.2.1", "url": f"{TUNNEL_BASE}/puc_mhs_vf/index.m3u8"},
+        {"id": "bult-mhs-ptz", "site": "BULTFONTEIN", "name": "PUC MHS PTZ", "ip": "10.8.2.2", "url": f"{TUNNEL_BASE}/puc_mhs_ptz/index.m3u8"},
+        {"id": "bult-m1-d", "site": "BULTFONTEIN", "name": "PUC M1 D", "ip": "10.8.1.1", "url": f"{TUNNEL_BASE}/puc_m1_d/index.m3u8"},
+        {"id": "bult-m1-vf-l", "site": "BULTFONTEIN", "name": "PUC M1 VF L", "ip": "10.8.1.2", "url": f"{TUNNEL_BASE}/puc_m1_vf_l/index.m3u8"},
+        {"id": "bult-m1-vf-r", "site": "BULTFONTEIN", "name": "PUC M1 VF R", "ip": "10.8.1.3", "url": f"{TUNNEL_BASE}/puc_m1_vf_r/index.m3u8"},
+        {"id": "bult-m1-npr-l", "site": "BULTFONTEIN", "name": "PUC M1 NPR L", "ip": "10.8.1.4", "url": f"{TUNNEL_BASE}/puc_m1_npr_l/index.m3u8"},
+        {"id": "bult-m1-npr-r", "site": "BULTFONTEIN", "name": "PUC M1 NPR R", "ip": "10.8.1.5", "url": f"{TUNNEL_BASE}/puc_m1_npr_r/index.m3u8"},
+        {"id": "bult-m2-d", "site": "BULTFONTEIN", "name": "PUC M2 D", "ip": "10.8.1.6", "url": f"{TUNNEL_BASE}/puc_m2_d/index.m3u8"},
+        {"id": "bult-m2-vf-l", "site": "BULTFONTEIN", "name": "PUC M2 VF L", "ip": "10.8.1.7", "url": f"{TUNNEL_BASE}/puc_m2_vf_l/index.m3u8"},
+        {"id": "bult-m2-vf-r", "site": "BULTFONTEIN", "name": "PUC M2 VF R", "ip": "10.8.1.8", "url": f"{TUNNEL_BASE}/puc_m2_vf_r/index.m3u8"},
+        {"id": "bult-m2-npr-l", "site": "BULTFONTEIN", "name": "PUC M2 NPR L", "ip": "10.8.1.9", "url": f"{TUNNEL_BASE}/puc_m2_npr_l/index.m3u8"},
+        {"id": "bult-m2-npr-r", "site": "BULTFONTEIN", "name": "PUC M2 NPR R", "ip": "10.8.1.10", "url": f"{TUNNEL_BASE}/puc_m2_npr_r/index.m3u8"},
+        {"id": "bult-m3-d", "site": "BULTFONTEIN", "name": "PUC M3 D", "ip": "10.8.1.11", "url": f"{TUNNEL_BASE}/puc_m3_d/index.m3u8"},
+        {"id": "bult-m3-vf-l", "site": "BULTFONTEIN", "name": "PUC M3 VF L", "ip": "10.8.1.12", "url": f"{TUNNEL_BASE}/puc_m3_vf_l/index.m3u8"},
+        {"id": "bult-m3-vf-r", "site": "BULTFONTEIN", "name": "PUC M3 VF R", "ip": "10.8.1.13", "url": f"{TUNNEL_BASE}/puc_m3_vf_r/index.m3u8"},
+        {"id": "bult-m3-npr-l", "site": "BULTFONTEIN", "name": "PUC M3 NPR L", "ip": "10.8.1.14", "url": f"{TUNNEL_BASE}/puc_m3_npr_l/index.m3u8"},
+        {"id": "bult-m4-d", "site": "BULTFONTEIN", "name": "PUC M4 D", "ip": "10.8.1.16", "url": f"{TUNNEL_BASE}/puc_m4_d/index.m3u8"},
+        {"id": "bult-m4-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": f"{TUNNEL_BASE}/puc_m4_weighbridge_b/index.m3u8"},
+        {"id": "bult-m4-vf-l", "site": "BULTFONTEIN", "name": "PUC M4 VF L", "ip": "10.8.1.17", "url": f"{TUNNEL_BASE}/puc_m4_vf_l/index.m3u8"},
+        {"id": "bult-m4-vf-r", "site": "BULTFONTEIN", "name": "PUC M4 VF R", "ip": "10.8.1.18", "url": f"{TUNNEL_BASE}/puc_m4_vf_r/index.m3u8"},
+        {"id": "bult-m4-npr-l", "site": "BULTFONTEIN", "name": "PUC M4 NPR L", "ip": "10.8.1.19", "url": f"{TUNNEL_BASE}/puc_m4_npr_l/index.m3u8"},
+        {"id": "bult-m5-d", "site": "BULTFONTEIN", "name": "PUC M5 D", "ip": "10.8.1.21", "url": f"{TUNNEL_BASE}/puc_m5_d/index.m3u8"},
+        {"id": "bult-m5-ptz", "site": "BULTFONTEIN", "name": "PUC M5 PTZ", "ip": "10.8.1.25", "url": f"{TUNNEL_BASE}/puc_m5_ptz/index.m3u8"},
+        {"id": "bult-m6-d", "site": "BULTFONTEIN", "name": "PUC M6 D", "ip": "10.8.1.26", "url": f"{TUNNEL_BASE}/puc_m6_d/index.m3u8"},
+        {"id": "bult-m6-vf-l", "site": "BULTFONTEIN", "name": "PUC M6 VF L", "ip": "10.8.1.27", "url": f"{TUNNEL_BASE}/puc_m6_vf_l/index.m3u8"},
+        {"id": "bult-m6-vf-r", "site": "BULTFONTEIN", "name": "PUC M6 VF R", "ip": "10.8.1.28", "url": f"{TUNNEL_BASE}/puc_m6_vf_r/index.m3u8"},
+        {"id": "bult-m6-npr-l", "site": "BULTFONTEIN", "name": "PUC M6 NPR L", "ip": "10.8.1.29", "url": f"{TUNNEL_BASE}/puc_m6_npr_l/index.m3u8"},
+        {"id": "bult-m7-d", "site": "BULTFONTEIN", "name": "PUC M7 D", "ip": "10.8.1.31", "url": f"{TUNNEL_BASE}/puc_m7_d/index.m3u8"},
+        {"id": "bult-m7-lptz", "site": "BULTFONTEIN", "name": "PUC M7 LPTZ", "ip": "10.8.1.35", "url": f"{TUNNEL_BASE}/puc_m7_lptz/index.m3u8"},
+        {"id": "bult-m8-d", "site": "BULTFONTEIN", "name": "PUC M8 D", "ip": "10.8.1.36", "url": f"{TUNNEL_BASE}/puc_m8_d/index.m3u8"},
+        {"id": "bult-m8-lptz", "site": "BULTFONTEIN", "name": "PUC M8 LPTZ", "ip": "10.8.1.40", "url": f"{TUNNEL_BASE}/puc_m8_lptz/index.m3u8"},
+        {"id": "bult-m9-d", "site": "BULTFONTEIN", "name": "PUC M9 D", "ip": "10.8.1.41", "url": f"{TUNNEL_BASE}/puc_m9_d/index.m3u8"},
+        {"id": "bult-m9-lptz", "site": "BULTFONTEIN", "name": "PUC M9 LPTZ", "ip": "10.8.1.45", "url": f"{TUNNEL_BASE}/puc_m9_lptz/index.m3u8"},
+        {"id": "bult-m10-d", "site": "BULTFONTEIN", "name": "PUC M10 D", "ip": "10.8.1.46", "url": f"{TUNNEL_BASE}/puc_m10_d/index.m3u8"},
+        {"id": "bult-m10-lptz", "site": "BULTFONTEIN", "name": "PUC M10 LPTZ", "ip": "10.8.1.50", "url": f"{TUNNEL_BASE}/puc_m10_lptz/index.m3u8"},
 
         # --- Annelize Site ---
-        {"id": "annelize-nvr", "site": "ANNELIZE", "name": "PMT OFFICE NVR", "ip": "10.16.0.201", "url": "https://smart-monkeys-kneel.loca.lt/pmt_office_nvr/index.m3u8"},
-        {"id": "annelize-ptz", "site": "ANNELIZE", "name": "PMT OFFICE PTZ", "ip": "10.16.1.3", "url": "https://smart-monkeys-kneel.loca.lt/pmt_office_ptz/index.m3u8"},
-        {"id": "annelize-m1-b1", "site": "ANNELIZE", "name": "PMT M1 B1", "ip": "10.16.1.11", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m1_b1/index.m3u8"},
-        {"id": "annelize-m1-ptz", "site": "ANNELIZE", "name": "PMT M1 PTZ", "ip": "10.16.1.12", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m1_ptz/index.m3u8"},
-        {"id": "annelize-m1-b2", "site": "ANNELIZE", "name": "PMT M1 B2", "ip": "10.16.1.13", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m1_b2/index.m3u8"},
-        {"id": "annelize-m2-b1", "site": "ANNELIZE", "name": "PMT M2 B1", "ip": "10.16.1.16", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m2_b1/index.m3u8"},
-        {"id": "annelize-m2-b2", "site": "ANNELIZE", "name": "PMT M2 B2", "ip": "10.16.1.17", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m2_b2/index.m3u8"},
-        {"id": "annelize-m2-b3", "site": "ANNELIZE", "name": "PMT M2 B3", "ip": "10.16.1.18", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m2_b3/index.m3u8"},
-        {"id": "annelize-m2-b4", "site": "ANNELIZE", "name": "PMT M2 B4", "ip": "10.16.1.19", "url": "https://smart-monkeys-kneel.loca.lt/pmt_m2_b4/index.m3u8"}
+        {"id": "annelize-nvr", "site": "ANNELIZE", "name": "PMT OFFICE NVR", "ip": "10.16.0.201", "url": f"{TUNNEL_BASE}/pmt_office_nvr/index.m3u8"},
+        {"id": "annelize-ptz", "site": "ANNELIZE", "name": "PMT OFFICE PTZ", "ip": "10.16.1.3", "url": f"{TUNNEL_BASE}/pmt_office_ptz/index.m3u8"},
+        {"id": "annelize-m1-b1", "site": "ANNELIZE", "name": "PMT M1 B1", "ip": "10.16.1.11", "url": f"{TUNNEL_BASE}/pmt_m1_b1/index.m3u8"},
+        {"id": "annelize-m1-ptz", "site": "ANNELIZE", "name": "PMT M1 PTZ", "ip": "10.16.1.12", "url": f"{TUNNEL_BASE}/pmt_m1_ptz/index.m3u8"},
+        {"id": "annelize-m1-b2", "site": "ANNELIZE", "name": "PMT M1 B2", "ip": "10.16.1.13", "url": f"{TUNNEL_BASE}/pmt_m1_b2/index.m3u8"},
+        {"id": "annelize-m2-b1", "site": "ANNELIZE", "name": "PMT M2 B1", "ip": "10.16.1.16", "url": f"{TUNNEL_BASE}/pmt_m2_b1/index.m3u8"},
+        {"id": "annelize-m2-b2", "site": "ANNELIZE", "name": "PMT M2 B2", "ip": "10.16.1.17", "url": f"{TUNNEL_BASE}/pmt_m2_b2/index.m3u8"},
+        {"id": "annelize-m2-b3", "site": "ANNELIZE", "name": "PMT M2 B3", "ip": "10.16.1.18", "url": f"{TUNNEL_BASE}/pmt_m2_b3/index.m3u8"},
+        {"id": "annelize-m2-b4", "site": "ANNELIZE", "name": "PMT M2 B4", "ip": "10.16.1.19", "url": f"{TUNNEL_BASE}/pmt_m2_b4/index.m3u8"}
     ]
     return {"status": "success", "count": len(cameras), "cameras": cameras}
+
 @app.post("/api/systems/{system_id}/config")
 async def update_system_config(system_id: str, config: SystemConfigUpdate):
     if system_id in SYSTEMS:
