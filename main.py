@@ -396,7 +396,7 @@ async def get_tontrac_orders():
 # don't have a fixed address). Every camera URL below is built
 # from this one variable.
 # ==========================================================
-TUNNEL_BASE = "https://avatar-wires-common-effectiveness.trycloudflare.com"
+TUNNEL_BASE = "https://laptop-17setviq.tail7acde1.ts.net"
 
 @app.get("/api/cameras/streams")
 async def get_camera_streams():
