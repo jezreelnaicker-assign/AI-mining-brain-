@@ -85,6 +85,8 @@ SYSTEMS = {
 ALERTS = []
 AI_ANALYSIS = []
 ACTIVITY_FEED = []
+TONTRAC_TICKETS = []
+TONTRAC_ORDERS = []
 
 
 class ConnectionManager:
@@ -113,7 +115,9 @@ class ConnectionManager:
             "systems": SYSTEMS,
             "alerts": ALERTS[-50:],
             "ai_analysis": AI_ANALYSIS[-50:],
-            "activity_feed": ACTIVITY_FEED[-50:]
+            "activity_feed": ACTIVITY_FEED[-50:],
+            "tontrac_tickets": TONTRAC_TICKETS[-100:],
+            "tontrac_orders": TONTRAC_ORDERS[-100:]
         })
 
 
@@ -231,6 +235,8 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
         print("\n================ TONTRAC PUSH RECEIVED ================")
         print(f"Tickets Received: {len(tickets)}")
 
+        received_at = datetime.now().strftime("%H:%M:%S")
+        stored_tickets = []
         for ticket in tickets:
             print("------------------------------------------------------")
             print(f"Ticket No : {ticket.get('TicketNo')}")
@@ -240,7 +246,27 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
             print(f"Product   : {ticket.get('ProductName')}")
             print(f"Net Weight: {ticket.get('NettWeightKgs')} kg")
 
+            enriched = {**ticket, "_received_at": received_at}
+            stored_tickets.append(enriched)
+
         print("=======================================================\n")
+
+        # Store, trim to last 200, newest first
+        TONTRAC_TICKETS[:0] = stored_tickets
+        del TONTRAC_TICKETS[200:]
+
+        # Push live to any connected dashboard
+        await manager.broadcast({"type": "NEW_TONTRAC_TICKETS", "data": stored_tickets})
+
+        # Reflect real activity on the Tontrac tile (replaces the old
+        # simulated random numbers for this system)
+        if "tontrac" in SYSTEMS:
+            SYSTEMS["tontrac"]["metrics"]["dispatched"] = SYSTEMS["tontrac"]["metrics"].get("dispatched", 0) + len(stored_tickets)
+            SYSTEMS["tontrac"]["metrics"]["last_ticket_at"] = received_at
+            await manager.broadcast({"type": "SYSTEM_UPDATE", "system": SYSTEMS["tontrac"]})
+
+        act = add_activity("tontrac", f"Received {len(stored_tickets)} weighbridge ticket(s) from TonTrac.")
+        await manager.broadcast({"type": "NEW_ACTIVITY", "data": act})
 
         return JSONResponse(
             status_code=200,
@@ -261,6 +287,105 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
                 "message": str(ex)
             }
         )
+
+
+@app.get("/api/tontrac/tickets")
+async def get_tontrac_tickets():
+    return {"status": "success", "count": len(TONTRAC_TICKETS), "tickets": TONTRAC_TICKETS[:100]}
+
+
+# ==========================================================
+# TONTRAC ORDERS
+# Receives orders pushed from TonTrac. Field names match the
+# OrdersPayload.json schema TonTrac supplied.
+# ==========================================================
+
+@app.post("/api/tontrac/orders")
+async def receive_tontrac_orders(payload: Any = Body(...)):
+    """
+    Receive orders pushed from TonTrac.
+
+    Supports:
+    - Single order (JSON object)
+    - Batch of orders (JSON array)
+    """
+
+    try:
+
+        # Support both a single order and a batch
+        if isinstance(payload, dict):
+            orders = [payload]
+        elif isinstance(payload, list):
+            orders = payload
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": "error",
+                    "message": "Invalid JSON payload."
+                }
+            )
+
+        print("\n================ TONTRAC ORDERS PUSH RECEIVED ================")
+        print(f"Orders Received: {len(orders)}")
+
+        received_at = datetime.now().strftime("%H:%M:%S")
+        stored_orders = []
+        for order in orders:
+            print("------------------------------------------------------")
+            print(f"Order No     : {order.get('OrderNo')}")
+            print(f"Order Ref No : {order.get('OrderRefNo')}")
+            print(f"Order Type   : {order.get('OrderType')}")
+            print(f"Order Date   : {order.get('OrderDate')}")
+            print(f"Product      : {order.get('ProductName')} ({order.get('ProductReference')})")
+            print(f"Dispatch     : {order.get('DispatchOrganisationName')} / {order.get('DispatchLocationName')}")
+            print(f"Receipt      : {order.get('ReceiptOrganisationName')} / {order.get('ReceiptLocationName')}")
+            print(f"Est. Mass    : {order.get('EstimatedMass')}")
+            print(f"Completed On : {order.get('CompletedOn')}  Mass: {order.get('CompletedOnMass')}")
+            print(f"Status       : IsComplete={order.get('IsComplete')} IsOpen={order.get('IsOpen')} IsSuspended={order.get('IsSuspended')}")
+
+            enriched = {**order, "_received_at": received_at}
+            stored_orders.append(enriched)
+
+        print("=======================================================\n")
+
+        # Store, trim to last 200, newest first
+        TONTRAC_ORDERS[:0] = stored_orders
+        del TONTRAC_ORDERS[200:]
+
+        await manager.broadcast({"type": "NEW_TONTRAC_ORDERS", "data": stored_orders})
+
+        if "tontrac" in SYSTEMS:
+            SYSTEMS["tontrac"]["metrics"]["last_order_at"] = received_at
+            await manager.broadcast({"type": "SYSTEM_UPDATE", "system": SYSTEMS["tontrac"]})
+
+        act = add_activity("tontrac", f"Received {len(stored_orders)} order(s) from TonTrac.")
+        await manager.broadcast({"type": "NEW_ACTIVITY", "data": act})
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "TonTrac orders received successfully.",
+                "received": len(orders)
+            }
+        )
+
+    except Exception as ex:
+        print(f"TonTrac Orders Endpoint Error: {ex}")
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": str(ex)
+            }
+        )
+
+
+@app.get("/api/tontrac/orders")
+async def get_tontrac_orders():
+    return {"status": "success", "count": len(TONTRAC_ORDERS), "orders": TONTRAC_ORDERS[:100]}
 
 # ==========================================================
 # CCTV camera stream directory.
@@ -402,7 +527,7 @@ async def simulation_loop():
     print("Background Simulation Loop Started...")
     while True:
         await asyncio.sleep(random.uniform(8.0, 15.0))
-        sys_id = random.choice(list(SYSTEMS.keys()))
+        sys_id = random.choice([k for k in SYSTEMS.keys() if k != "tontrac"])
         system = SYSTEMS[sys_id]
 
         if system["status"] == "offline":

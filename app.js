@@ -224,6 +224,110 @@ const IframePlayer = ({ url, systemName }) => {
   );
 };
 
+// ─── TONTRAC DASHBOARD ────────────────────────────────────────
+// Shows real tickets/orders pushed from TonTrac, live over the
+// websocket, plus whatever was already stored on page load.
+const TontracDashboard = ({ tickets, orders }) => {
+  return (
+    <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
+        <div className="glass-panel p-4 rounded-lg border border-gray-200">
+          <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Weighbridge Tickets</div>
+          <div className="text-xl font-bold font-display text-gray-800">{tickets.length} received</div>
+          <div className="text-[10px] text-gray-400 font-mono mt-1">
+            {tickets.length > 0 ? `Last: ${tickets[0]._received_at}` : 'Waiting for first push...'}
+          </div>
+        </div>
+        <div className="glass-panel p-4 rounded-lg border border-gray-200">
+          <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Orders</div>
+          <div className="text-xl font-bold font-display text-gray-800">{orders.length} received</div>
+          <div className="text-[10px] text-gray-400 font-mono mt-1">
+            {orders.length > 0 ? `Last: ${orders[0]._received_at}` : 'Waiting for first push...'}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        {/* Tickets table */}
+        <div className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-200 bg-gray-50 text-xs font-bold font-display uppercase text-gray-700">Recent Tickets</div>
+          <div className="flex-1 overflow-y-auto">
+            {tickets.length === 0 ? (
+              <div className="text-xs text-gray-400 font-mono p-4 text-center">No tickets received yet</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-mono">Time</th>
+                    <th className="text-left px-3 py-2 font-mono">Ticket No</th>
+                    <th className="text-left px-3 py-2 font-mono">Vehicle</th>
+                    <th className="text-left px-3 py-2 font-mono">Product</th>
+                    <th className="text-right px-3 py-2 font-mono">Net Wt (kg)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((t, i) => (
+                    <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-gray-400">{t._received_at}</td>
+                      <td className="px-3 py-2 text-gray-800 font-semibold">{t.TicketNo}</td>
+                      <td className="px-3 py-2 text-gray-600">{t.VehicleRegNo}</td>
+                      <td className="px-3 py-2 text-gray-600">{t.ProductName}</td>
+                      <td className="px-3 py-2 text-right text-gray-800 font-mono">{t.NettWeightKgs}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Orders table */}
+        <div className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-200 bg-gray-50 text-xs font-bold font-display uppercase text-gray-700">Recent Orders</div>
+          <div className="flex-1 overflow-y-auto">
+            {orders.length === 0 ? (
+              <div className="text-xs text-gray-400 font-mono p-4 text-center">No orders received yet</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-mono">Time</th>
+                    <th className="text-left px-3 py-2 font-mono">Order No</th>
+                    <th className="text-left px-3 py-2 font-mono">Product</th>
+                    <th className="text-left px-3 py-2 font-mono">Dispatch → Receipt</th>
+                    <th className="text-right px-3 py-2 font-mono">Est. Mass</th>
+                    <th className="text-left px-3 py-2 font-mono">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((o, i) => (
+                    <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-gray-400">{o._received_at}</td>
+                      <td className="px-3 py-2 text-gray-800 font-semibold">{o.OrderNo}</td>
+                      <td className="px-3 py-2 text-gray-600">{o.ProductName}</td>
+                      <td className="px-3 py-2 text-gray-600">{o.DispatchLocationName} → {o.ReceiptLocationName}</td>
+                      <td className="px-3 py-2 text-right text-gray-800 font-mono">{o.EstimatedMass}</td>
+                      <td className="px-3 py-2">
+                        {o.IsComplete ? (
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-mono">COMPLETE</span>
+                        ) : o.IsOpen ? (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-mono">OPEN</span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── SDE CAMERA DASHBOARD ────────────────────────────────────
 // FIX: was using a raw <video src=...> tag, which cannot play .m3u8
 // (HLS) streams in Chrome/Edge/Firefox — only Safari supports that
@@ -362,6 +466,12 @@ const PasswordGate = ({ onUnlock }) => {
         <style>{`@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }`}</style>
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
           <div className="px-8 pt-8 pb-6 flex flex-col items-center border-b border-gray-100">
+            <img
+              src="/static/pmg.logo.png"
+              alt="Company Logo"
+              className="h-14 w-auto object-contain mb-5"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
             <div className="w-11 h-11 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-3">
               <Icons.Lock />
             </div>
@@ -414,6 +524,8 @@ const App = () => {
   const [alerts, setAlerts] = React.useState([]);
   const [aiAnalysis, setAiAnalysis] = React.useState([]);
   const [activityFeed, setActivityFeed] = React.useState([]);
+  const [tontracTickets, setTontracTickets] = React.useState([]);
+  const [tontracOrders, setTontracOrders] = React.useState([]);
   const [wsConnected, setWsConnected] = React.useState(false);
   const [configModalSystem, setConfigModalSystem] = React.useState(null);
 
@@ -432,6 +544,12 @@ const App = () => {
           setAlerts(msg.alerts.reverse());
           setAiAnalysis(msg.ai_analysis.reverse());
           setActivityFeed(msg.activity_feed.reverse());
+          setTontracTickets(msg.tontrac_tickets || []);
+          setTontracOrders(msg.tontrac_orders || []);
+        } else if (msg.type === 'NEW_TONTRAC_TICKETS') {
+          setTontracTickets(prev => [...msg.data, ...prev].slice(0, 200));
+        } else if (msg.type === 'NEW_TONTRAC_ORDERS') {
+          setTontracOrders(prev => [...msg.data, ...prev].slice(0, 200));
         } else if (msg.type === 'SYSTEM_UPDATE') {
           setSystems(prev => ({ ...prev, [msg.system.id]: msg.system }));
         } else if (msg.type === 'NEW_ALERT') {
@@ -496,6 +614,8 @@ const App = () => {
               <OverviewDashboard systems={systems} alerts={alerts} aiAnalysis={aiAnalysis} setSelectedSystem={setSelectedSystem} />
             ) : selectedSystem === 'sde' ? (
               <SDECameraDashboard />
+            ) : selectedSystem === 'tontrac' ? (
+              <TontracDashboard tickets={tontracTickets} orders={tontracOrders} />
             ) : (
               <ScreenMirror
                 system={systems[selectedSystem]}
@@ -522,6 +642,12 @@ const Sidebar = ({ systems, selectedSystem, setSelectedSystem, wsConnected }) =>
     <div className="w-64 border-r border-gray-200 bg-white flex flex-col h-full shrink-0">
       <div className="p-5 border-b border-gray-200 shrink-0">
         <div className="flex items-center space-x-3">
+          <img
+            src="/static/pmg.logo.png"
+            alt="Company Logo"
+            className="h-10 w-auto object-contain shrink-0"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
           <div className="min-w-0">
             <h2 className="font-semibold text-gray-800 text-sm tracking-wide truncate">MINERALS OPS</h2>
             <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">Autonomous Core</p>
