@@ -402,7 +402,7 @@ TUNNEL_BASE = "https://laptop-17setviq.tail7acde1.ts.net"
 async def get_camera_streams():
     cameras = [
         # --- Bultfontein Site ---
-        {"id": "bult-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": f"{TUNNEL_BASE}/cam1/index.m3u8"},
+        {"id": "bult-wb", "site": "BULTFONTEIN", "name": "PUC M4 WEIGHBRIDGE B", "ip": "10.8.16.16", "url": f"{TUNNEL_BASE}/cam1_h264/index.m3u8"},
         {"id": "bult-nvr01", "site": "BULTFONTEIN", "name": "PUC NVR01", "ip": "10.8.0.201", "url": f"{TUNNEL_BASE}/puc_nvr01/index.m3u8"},
         {"id": "bult-nvr02", "site": "BULTFONTEIN", "name": "PUC NVR02", "ip": "10.8.0.202", "url": f"{TUNNEL_BASE}/puc_nvr02/index.m3u8"},
         {"id": "bult-mhs-vf", "site": "BULTFONTEIN", "name": "PUC MHS VF", "ip": "10.8.2.1", "url": f"{TUNNEL_BASE}/puc_mhs_vf/index.m3u8"},
