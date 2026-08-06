@@ -1,6 +1,8 @@
 import asyncio
 import random
 import os
+import json
+import asyncpg
 from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
@@ -87,6 +89,71 @@ AI_ANALYSIS = []
 ACTIVITY_FEED = []
 TONTRAC_TICKETS = []
 TONTRAC_ORDERS = []
+
+# ==========================================================
+# PERSISTENT STORAGE (Neon Postgres, free tier)
+# TONTRAC_TICKETS / TONTRAC_ORDERS above stay as fast in-memory
+# caches for the websocket/API, but every record is also written
+# to the database so it survives redeploys and restarts. On
+# startup, recent history is reloaded from the database back into
+# these in-memory lists.
+# ==========================================================
+DB_POOL = None
+
+
+async def init_db():
+    global DB_POOL
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        print("WARNING: DATABASE_URL not set -- tontrac data will NOT persist across restarts.")
+        return
+
+    DB_POOL = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+
+    async with DB_POOL.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tontrac_tickets (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL,
+                received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tontrac_orders (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL,
+                received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+
+        # Rehydrate in-memory caches from the database (most recent first)
+        ticket_rows = await conn.fetch("SELECT data FROM tontrac_tickets ORDER BY id DESC LIMIT 200")
+        TONTRAC_TICKETS[:] = [row["data"] for row in ticket_rows]
+
+        order_rows = await conn.fetch("SELECT data FROM tontrac_orders ORDER BY id DESC LIMIT 200")
+        TONTRAC_ORDERS[:] = [row["data"] for row in order_rows]
+
+    print(f"DB connected. Loaded {len(TONTRAC_TICKETS)} tickets, {len(TONTRAC_ORDERS)} orders from storage.")
+
+
+async def save_tickets_to_db(tickets):
+    if not DB_POOL:
+        return
+    async with DB_POOL.acquire() as conn:
+        await conn.executemany(
+            "INSERT INTO tontrac_tickets (data) VALUES ($1::jsonb)",
+            [(json.dumps(t),) for t in tickets]
+        )
+
+
+async def save_orders_to_db(orders):
+    if not DB_POOL:
+        return
+    async with DB_POOL.acquire() as conn:
+        await conn.executemany(
+            "INSERT INTO tontrac_orders (data) VALUES ($1::jsonb)",
+            [(json.dumps(o),) for o in orders]
+        )
 
 
 class ConnectionManager:
@@ -255,6 +322,9 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
         TONTRAC_TICKETS[:0] = stored_tickets
         del TONTRAC_TICKETS[200:]
 
+        # Persist to database so this survives redeploys/restarts
+        await save_tickets_to_db(stored_tickets)
+
         # Push live to any connected dashboard
         await manager.broadcast({"type": "NEW_TONTRAC_TICKETS", "data": stored_tickets})
 
@@ -352,6 +422,9 @@ async def receive_tontrac_orders(payload: Any = Body(...)):
         # Store, trim to last 200, newest first
         TONTRAC_ORDERS[:0] = stored_orders
         del TONTRAC_ORDERS[200:]
+
+        # Persist to database so this survives redeploys/restarts
+        await save_orders_to_db(stored_orders)
 
         await manager.broadcast({"type": "NEW_TONTRAC_ORDERS", "data": stored_orders})
 
@@ -660,4 +733,5 @@ async def simulation_loop():
 
 @app.on_event("startup")
 async def startup_event():
+    await init_db()
     asyncio.create_task(simulation_loop())
