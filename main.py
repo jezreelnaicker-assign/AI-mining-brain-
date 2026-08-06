@@ -4,6 +4,7 @@ import os
 import json
 import asyncpg
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,12 @@ from typing import Any
 from fastapi import Body
 
 app = FastAPI(title="AI Operations Command Center Backend")
+
+# Render's server runs in UTC. All timestamps shown on the dashboard
+# should be South Africa time (SAST, UTC+2, no daylight saving) --
+# this helper is used everywhere instead of bare datetime.now().
+def sast_now():
+    return datetime.now(ZoneInfo("Africa/Johannesburg"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -108,7 +115,20 @@ async def init_db():
         print("WARNING: DATABASE_URL not set -- tontrac data will NOT persist across restarts.")
         return
 
-    DB_POOL = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+    async def init_connection(conn):
+        # Without this, asyncpg returns JSONB columns as raw text
+        # strings instead of decoded Python objects -- this was
+        # causing tickets/orders reloaded after a restart to show
+        # up with every field "undefined" on the dashboard.
+        await conn.set_type_codec(
+            "jsonb",
+            encoder=json.dumps,
+            decoder=json.loads,
+            schema="pg_catalog",
+            format="text",
+        )
+
+    DB_POOL = await asyncpg.create_pool(database_url, min_size=1, max_size=5, init=init_connection)
 
     async with DB_POOL.acquire() as conn:
         await conn.execute("""
@@ -193,8 +213,8 @@ manager = ConnectionManager()
 
 def add_alert(system_id: str, severity: str, message: str):
     alert = {
-        "id": f"alert_{int(datetime.now().timestamp()*1000)}",
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "id": f"alert_{int(sast_now().timestamp()*1000)}",
+        "timestamp": sast_now().strftime("%H:%M:%S"),
         "system_id": system_id,
         "system_name": SYSTEMS[system_id]["name"] if system_id in SYSTEMS else "System",
         "severity": severity,
@@ -206,8 +226,8 @@ def add_alert(system_id: str, severity: str, message: str):
 
 def add_ai_analysis(system_id: str, category: str, insight: str):
     analysis = {
-        "id": f"analysis_{int(datetime.now().timestamp()*1000)}",
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "id": f"analysis_{int(sast_now().timestamp()*1000)}",
+        "timestamp": sast_now().strftime("%H:%M:%S"),
         "system_id": system_id,
         "system_name": SYSTEMS[system_id]["name"] if system_id in SYSTEMS else "System",
         "category": category,
@@ -219,8 +239,8 @@ def add_ai_analysis(system_id: str, category: str, insight: str):
 
 def add_activity(system_id: str, message: str):
     activity = {
-        "id": f"activity_{int(datetime.now().timestamp()*1000)}",
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "id": f"activity_{int(sast_now().timestamp()*1000)}",
+        "timestamp": sast_now().strftime("%H:%M:%S"),
         "system_id": system_id,
         "system_name": SYSTEMS[system_id]["name"] if system_id in SYSTEMS else "System",
         "message": message
@@ -302,7 +322,7 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
         print("\n================ TONTRAC PUSH RECEIVED ================")
         print(f"Tickets Received: {len(tickets)}")
 
-        received_at = datetime.now().strftime("%H:%M:%S")
+        received_at = sast_now().strftime("%H:%M:%S")
         stored_tickets = []
         for ticket in tickets:
             print("------------------------------------------------------")
@@ -399,7 +419,7 @@ async def receive_tontrac_orders(payload: Any = Body(...)):
         print("\n================ TONTRAC ORDERS PUSH RECEIVED ================")
         print(f"Orders Received: {len(orders)}")
 
-        received_at = datetime.now().strftime("%H:%M:%S")
+        received_at = sast_now().strftime("%H:%M:%S")
         stored_orders = []
         for order in orders:
             print("------------------------------------------------------")
@@ -589,7 +609,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "OPERATOR_PING":
-                await websocket.send_json({"type": "PONG", "timestamp": datetime.now().strftime("%H:%M:%S")})
+                await websocket.send_json({"type": "PONG", "timestamp": sast_now().strftime("%H:%M:%S")})
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:
