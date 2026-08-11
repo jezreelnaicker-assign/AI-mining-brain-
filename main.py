@@ -2,14 +2,16 @@ import asyncio
 import random
 import os
 import json
+import time
 import asyncpg
+import httpx
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 from typing import Any
 from fastapi import Body
@@ -749,6 +751,199 @@ async def simulation_loop():
                 await manager.broadcast({"type": "SYSTEM_UPDATE", "system": system})
                 act = add_activity(sys_id, f"Bidtrack transaction status update: pending deals set to {system['metrics']['pending_deals']}.")
                 await manager.broadcast({"type": "NEW_ACTIVITY", "data": act})
+
+
+# ==========================================================
+# SATELLITE SURVEILLANCE — Copernicus Sentinel-2
+#
+# Free imagery source, chosen after comparing against Landsat and
+# NASA Worldview/HLS: best balance of resolution (10m), revisit
+# frequency (~5 days), a real programmatic API (not just a
+# download portal), free commercial use, and native AOI/polygon
+# support. See chat for the full comparison.
+#
+# ARCHITECTURE NOTE: every function below is written against one
+# clean interface (get_latest_scene_meta, get_scene_image,
+# search_recent_scenes). To later swap in commercial high-res
+# imagery or drone photogrammetry, add a new module implementing
+# the same three functions and switch which one the endpoints
+# call -- nothing on the frontend needs to change.
+#
+# Credentials: COPERNICUS_CLIENT_ID / COPERNICUS_CLIENT_SECRET
+# env vars (Sentinel Hub Dashboard -> User Settings -> OAuth
+# clients). Never hardcoded.
+# ==========================================================
+
+COPERNICUS_TOKEN_URL = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+COPERNICUS_PROCESS_URL = "https://sh.dataspace.copernicus.eu/process/v1"
+COPERNICUS_CATALOG_URL = "https://sh.dataspace.copernicus.eu/catalog/v1/search"
+
+# Bultfontein Mine AOI -- built as a ~3km x 3km box around the
+# coordinates provided (lat -28.76788, lng 24.79387). Adjust if a
+# more precise mine boundary/polygon becomes available later.
+SITE_AOIS = {
+    "bultfontein": {
+        "name": "Bultfontein Mine",
+        "center": {"lat": -28.76788, "lng": 24.79387},
+        # [west, south, east, north] in WGS84
+        "bbox": [24.77887, -28.78288, 24.80887, -28.75288],
+    }
+}
+
+TRUE_COLOR_EVALSCRIPT = """
+//VERSION=3
+function setup() {
+  return {
+    input: ["B02", "B03", "B04"],
+    output: { bands: 3, sampleType: "AUTO" }
+  }
+}
+function evaluatePixel(sample) {
+  return [2.5 * sample.B04, 2.5 * sample.B03, 2.5 * sample.B02]
+}
+"""
+
+_copernicus_token = {"value": None, "expires_at": 0}
+
+
+async def _get_copernicus_token():
+    """Client-credentials OAuth token, cached until shortly before it expires."""
+    if _copernicus_token["value"] and time.time() < _copernicus_token["expires_at"] - 60:
+        return _copernicus_token["value"]
+
+    client_id = os.environ.get("COPERNICUS_CLIENT_ID")
+    client_secret = os.environ.get("COPERNICUS_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        raise RuntimeError("COPERNICUS_CLIENT_ID / COPERNICUS_CLIENT_SECRET not set")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            COPERNICUS_TOKEN_URL,
+            data={"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    _copernicus_token["value"] = data["access_token"]
+    _copernicus_token["expires_at"] = time.time() + data.get("expires_in", 3600)
+    return _copernicus_token["value"]
+
+
+async def search_recent_scenes(site_id: str, days: int = 90, limit: int = 20):
+    """Returns a list of {date, cloud_coverage} for available scenes, most recent first."""
+    aoi = SITE_AOIS[site_id]
+    token = await _get_copernicus_token()
+
+    from datetime import timedelta
+    end = datetime.utcnow()
+    start = end - timedelta(days=days)
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            COPERNICUS_CATALOG_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "collections": ["sentinel-2-l2a"],
+                "datetime": f"{start.strftime('%Y-%m-%dT00:00:00Z')}/{end.strftime('%Y-%m-%dT23:59:59Z')}",
+                "bbox": aoi["bbox"],
+                "limit": limit,
+                "sortby": [{"field": "properties.datetime", "direction": "desc"}],
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    scenes = []
+    for feature in data.get("features", []):
+        props = feature.get("properties", {})
+        acquisition_datetime = props.get("datetime", "")
+        scenes.append({
+            "date": acquisition_datetime[:10] if acquisition_datetime else None,
+            "cloud_coverage": props.get("eo:cloud_cover"),
+        })
+    return scenes
+
+
+async def get_scene_image(site_id: str, date: str) -> bytes:
+    """Returns a true-color JPEG for the given site/date (YYYY-MM-DD)."""
+    aoi = SITE_AOIS[site_id]
+    token = await _get_copernicus_token()
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            COPERNICUS_PROCESS_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "input": {
+                    "bounds": {
+                        "bbox": aoi["bbox"],
+                        "properties": {"crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"},
+                    },
+                    "data": [{
+                        "type": "sentinel-2-l2a",
+                        "dataFilter": {
+                            "timeRange": {"from": f"{date}T00:00:00Z", "to": f"{date}T23:59:59Z"},
+                            "mosaickingOrder": "leastCC",
+                        },
+                    }],
+                },
+                "output": {
+                    "width": 800,
+                    "height": 800,
+                    "responses": [{"identifier": "default", "format": {"type": "image/jpeg"}}],
+                },
+                "evalscript": TRUE_COLOR_EVALSCRIPT,
+            },
+        )
+        resp.raise_for_status()
+        return resp.content
+
+
+async def get_latest_scene_meta(site_id: str):
+    scenes = await search_recent_scenes(site_id, days=30, limit=5)
+    if not scenes:
+        return None
+    return scenes[0]
+
+
+@app.get("/api/satellite/{site_id}/latest-meta")
+async def satellite_latest_meta(site_id: str):
+    if site_id not in SITE_AOIS:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Unknown site"})
+    try:
+        meta = await get_latest_scene_meta(site_id)
+        if not meta:
+            return {"status": "success", "meta": None, "message": "No recent cloud-free scenes found"}
+        return {
+            "status": "success",
+            "meta": meta,
+            "site_name": SITE_AOIS[site_id]["name"],
+            "center": SITE_AOIS[site_id]["center"],
+        }
+    except Exception as ex:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(ex)})
+
+
+@app.get("/api/satellite/{site_id}/history")
+async def satellite_history(site_id: str, days: int = 90):
+    if site_id not in SITE_AOIS:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Unknown site"})
+    try:
+        scenes = await search_recent_scenes(site_id, days=days, limit=30)
+        return {"status": "success", "scenes": scenes}
+    except Exception as ex:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(ex)})
+
+
+@app.get("/api/satellite/{site_id}/image")
+async def satellite_image(site_id: str, date: str):
+    if site_id not in SITE_AOIS:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Unknown site"})
+    try:
+        image_bytes = await get_scene_image(site_id, date)
+        return Response(content=image_bytes, media_type="image/jpeg")
+    except Exception as ex:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(ex)})
 
 
 @app.on_event("startup")

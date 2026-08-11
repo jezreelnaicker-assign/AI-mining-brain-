@@ -95,6 +95,11 @@ const Icons = {
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21m-6.878-6.878l3.242 3.243" />
     </svg>
+  ),
+  Satellite: () => (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10l6-6m0 0h-4m4 0v4M3 21l4.5-4.5m0 0a3 3 0 104.243-4.243 3 3 0 00-4.243 4.243zm4.243-4.243L15 8m-9.5 12.5L3 18l2.5-2.5" />
+    </svg>
   )
 };
 
@@ -219,6 +224,185 @@ const IframePlayer = ({ url, systemName }) => {
           allow="autoplay; fullscreen"
           title={systemName}
         />
+      )}
+    </div>
+  );
+};
+
+// ─── SATELLITE SURVEILLANCE DASHBOARD ─────────────────────────
+// Copernicus Sentinel-2 imagery for Bultfontein Mine. Built
+// behind a clean fetch pattern so a future commercial/drone
+// imagery source is a backend swap, not a frontend rebuild.
+const SatelliteDashboard = () => {
+  const [meta, setMeta] = React.useState(null);
+  const [siteName, setSiteName] = React.useState('');
+  const [history, setHistory] = React.useState([]);
+  const [compareDate, setCompareDate] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [zoom, setZoom] = React.useState(1);
+  const [showDiff, setShowDiff] = React.useState(false);
+  const diffCanvasRef = React.useRef(null);
+
+  const SITE = 'bultfontein';
+
+  const loadData = React.useCallback(() => {
+    setLoading(true);
+    setError('');
+    Promise.all([
+      fetch(`/api/satellite/${SITE}/latest-meta`).then(r => r.json()),
+      fetch(`/api/satellite/${SITE}/history`).then(r => r.json()),
+    ]).then(([latestRes, historyRes]) => {
+      if (latestRes.status === 'success') {
+        setMeta(latestRes.meta);
+        setSiteName(latestRes.site_name || 'Bultfontein Mine');
+      } else {
+        setError(latestRes.message || 'Failed to load latest imagery');
+      }
+      if (historyRes.status === 'success') {
+        setHistory(historyRes.scenes || []);
+      }
+      setLoading(false);
+    }).catch(err => {
+      setError('Could not reach satellite imagery service.');
+      setLoading(false);
+    });
+  }, []);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
+
+  const latestImageUrl = meta ? `/api/satellite/${SITE}/image?date=${meta.date}` : null;
+  const compareImageUrl = compareDate ? `/api/satellite/${SITE}/image?date=${compareDate}` : null;
+
+  // Basic change detection: draw both images to canvases and render
+  // a grayscale difference heatmap. Practical/approximate, not a
+  // calibrated stockpile-change measurement.
+  React.useEffect(() => {
+    if (!showDiff || !latestImageUrl || !compareImageUrl || !diffCanvasRef.current) return;
+    const canvas = diffCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img1 = new Image();
+    const img2 = new Image();
+    img1.crossOrigin = 'anonymous';
+    img2.crossOrigin = 'anonymous';
+    let loaded = 0;
+    const tryRender = () => {
+      loaded++;
+      if (loaded < 2) return;
+      const w = 400, h = 400;
+      canvas.width = w; canvas.height = h;
+      const c1 = document.createElement('canvas'); c1.width = w; c1.height = h;
+      const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
+      c1.getContext('2d').drawImage(img1, 0, 0, w, h);
+      c2.getContext('2d').drawImage(img2, 0, 0, w, h);
+      const d1 = c1.getContext('2d').getImageData(0, 0, w, h);
+      const d2 = c2.getContext('2d').getImageData(0, 0, w, h);
+      const out = ctx.createImageData(w, h);
+      for (let i = 0; i < d1.data.length; i += 4) {
+        const diff = (Math.abs(d1.data[i] - d2.data[i]) + Math.abs(d1.data[i+1] - d2.data[i+1]) + Math.abs(d1.data[i+2] - d2.data[i+2])) / 3;
+        out.data[i] = diff; out.data[i+1] = diff > 30 ? 220 : 0; out.data[i+2] = 0; out.data[i+3] = 255;
+      }
+      ctx.putImageData(out, 0, 0);
+    };
+    img1.onload = tryRender; img2.onload = tryRender;
+    img1.src = compareImageUrl; img2.src = latestImageUrl;
+  }, [showDiff, latestImageUrl, compareImageUrl]);
+
+  return (
+    <div className="flex-1 flex flex-col space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold font-display uppercase text-gray-800">{siteName || 'Bultfontein Mine'} — Satellite Surveillance</h3>
+          <p className="text-[10px] text-gray-400 font-mono mt-0.5">Source: Copernicus Sentinel-2 L2A (free, 10m resolution, ~5 day revisit)</p>
+        </div>
+        <button onClick={loadData} className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition">
+          <Icons.Refresh /><span>Refresh</span>
+        </button>
+      </div>
+
+      {loading && (
+        <div className="flex-1 flex items-center justify-center text-gray-400 font-mono text-sm">Loading satellite imagery...</div>
+      )}
+
+      {!loading && error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+      )}
+
+      {!loading && !error && !meta && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">No cloud-free scenes found in the last 30 days for this AOI.</div>
+      )}
+
+      {!loading && !error && meta && (
+        <div className="flex-1 flex flex-col space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="glass-panel p-3 rounded-lg border border-gray-200">
+              <div className="text-[10px] font-mono text-gray-400 uppercase">Acquisition Date</div>
+              <div className="text-sm font-bold text-gray-800">{meta.date}</div>
+            </div>
+            <div className="glass-panel p-3 rounded-lg border border-gray-200">
+              <div className="text-[10px] font-mono text-gray-400 uppercase">Cloud Coverage</div>
+              <div className="text-sm font-bold text-gray-800">{meta.cloud_coverage != null ? `${meta.cloud_coverage.toFixed(1)}%` : '—'}</div>
+            </div>
+            <div className="glass-panel p-3 rounded-lg border border-gray-200">
+              <div className="text-[10px] font-mono text-gray-400 uppercase">Resolution</div>
+              <div className="text-sm font-bold text-gray-800">10m / pixel</div>
+            </div>
+            <div className="glass-panel p-3 rounded-lg border border-gray-200">
+              <div className="text-[10px] font-mono text-gray-400 uppercase">AOI</div>
+              <div className="text-sm font-bold text-gray-800">~3km × 3km</div>
+            </div>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+            <div className="lg:col-span-2 flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-gray-700">Latest Image</span>
+                <div className="flex items-center space-x-2">
+                  <button onClick={() => setZoom(z => Math.max(1, z - 0.25))} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300">−</button>
+                  <span className="text-[10px] font-mono text-gray-500">{Math.round(zoom * 100)}%</span>
+                  <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300">+</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-black flex items-center justify-center p-2">
+                {showDiff ? (
+                  <canvas ref={diffCanvasRef} className="max-w-full" />
+                ) : (
+                  <img src={latestImageUrl} alt="Latest satellite image" style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }} className="transition-transform" />
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase text-gray-700">Compare / History</div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <p className="text-[10px] text-gray-400 font-mono mb-2">Pick a previous date to compare against the latest image.</p>
+                {history.length === 0 && <div className="text-xs text-gray-400 font-mono">No history available yet</div>}
+                {history.map((scene, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCompareDate(scene.date)}
+                    className={`w-full text-left px-2.5 py-2 rounded border text-xs transition ${compareDate === scene.date ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    <div className="font-semibold">{scene.date}</div>
+                    <div className="text-[10px] text-gray-400">Cloud: {scene.cloud_coverage != null ? `${scene.cloud_coverage.toFixed(1)}%` : '—'}</div>
+                  </button>
+                ))}
+                {compareDate && (
+                  <button
+                    onClick={() => setShowDiff(v => !v)}
+                    className="w-full mt-2 px-2.5 py-2 rounded text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition"
+                  >
+                    {showDiff ? 'Hide' : 'Show'} Change Heatmap
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-gray-400 font-mono">
+            Note: 10m Sentinel-2 imagery is suitable for visual monitoring and basic change detection only — it should not be used to calculate accurate stockpile tonnage. Commercial high-resolution or drone imagery can be swapped in later for that.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -616,6 +800,8 @@ const App = () => {
               <SDECameraDashboard />
             ) : selectedSystem === 'tontrac' ? (
               <TontracDashboard tickets={tontracTickets} orders={tontracOrders} />
+            ) : selectedSystem === 'satellite' ? (
+              <SatelliteDashboard />
             ) : (
               <ScreenMirror
                 system={systems[selectedSystem]}
@@ -677,6 +863,13 @@ const Sidebar = ({ systems, selectedSystem, setSelectedSystem, wsConnected }) =>
             </button>
           );
         })}
+
+        <div className="h-px bg-gray-200 my-4"></div>
+        <div className="px-3 mb-2"><p className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Remote Sensing</p></div>
+        <button onClick={() => setSelectedSystem('satellite')} className={`w-full flex items-center px-4 py-3 rounded-lg text-sm transition duration-150 ${selectedSystem === 'satellite' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
+          <span className={`mr-3 ${selectedSystem === 'satellite' ? 'text-emerald-600' : 'text-gray-400'}`}><Icons.Satellite /></span>
+          <span className="font-display uppercase tracking-wider text-xs">Satellite Surveillance</span>
+        </button>
       </div>
     </div>
   );
