@@ -847,10 +847,10 @@ async def search_recent_scenes(site_id: str, days: int = 90, limit: int = 20):
                 "datetime": f"{start.strftime('%Y-%m-%dT00:00:00Z')}/{end.strftime('%Y-%m-%dT23:59:59Z')}",
                 "bbox": aoi["bbox"],
                 "limit": limit,
-                "sortby": [{"field": "properties.datetime", "direction": "desc"}],
             },
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Catalog API error {resp.status_code}: {resp.text}")
         data = resp.json()
 
     scenes = []
@@ -861,6 +861,10 @@ async def search_recent_scenes(site_id: str, days: int = 90, limit: int = 20):
             "date": acquisition_datetime[:10] if acquisition_datetime else None,
             "cloud_coverage": props.get("eo:cloud_cover"),
         })
+
+    # Sort most-recent-first ourselves, since the API doesn't
+    # reliably support a sortby parameter on this endpoint.
+    scenes.sort(key=lambda s: s["date"] or "", reverse=True)
     return scenes
 
 
@@ -895,7 +899,8 @@ async def get_scene_image(site_id: str, date: str) -> bytes:
                 "evalscript": TRUE_COLOR_EVALSCRIPT,
             },
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Process API error {resp.status_code}: {resp.text}")
         return resp.content
 
 
