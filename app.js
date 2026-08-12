@@ -242,6 +242,7 @@ const SatelliteDashboard = () => {
   const [error, setError] = React.useState('');
   const [zoom, setZoom] = React.useState(1);
   const [showDiff, setShowDiff] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   const diffCanvasRef = React.useRef(null);
 
   const SITE = 'bultfontein';
@@ -361,13 +362,22 @@ const SatelliteDashboard = () => {
                   <button onClick={() => setZoom(z => Math.max(1, z - 0.25))} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300">−</button>
                   <span className="text-[10px] font-mono text-gray-500">{Math.round(zoom * 100)}%</span>
                   <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300">+</button>
+                  <button onClick={() => setExpanded(true)} className="flex items-center space-x-1 px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300">
+                    <Icons.Fullscreen /><span>Expand</span>
+                  </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto bg-black flex items-center justify-center p-2">
+              <div className="flex-1 flex items-center justify-center p-2 bg-gray-50">
                 {showDiff ? (
-                  <canvas ref={diffCanvasRef} className="max-w-full" />
+                  <canvas ref={diffCanvasRef} className="max-w-full max-h-full object-contain rounded" />
                 ) : (
-                  <img src={latestImageUrl} alt="Latest satellite image" style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }} className="transition-transform" />
+                  <img
+                    src={latestImageUrl}
+                    alt="Latest satellite image"
+                    onClick={() => setExpanded(true)}
+                    style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
+                    className="max-w-full max-h-full object-contain rounded cursor-zoom-in transition-transform"
+                  />
                 )}
               </div>
             </div>
@@ -404,6 +414,63 @@ const SatelliteDashboard = () => {
           </p>
         </div>
       )}
+
+      {expanded && latestImageUrl && (
+        <SatelliteExpandModal imageUrl={showDiff ? null : latestImageUrl} onClose={() => setExpanded(false)} />
+      )}
+    </div>
+  );
+};
+
+// Fullscreen expand view with independent zoom + drag-to-pan.
+const SatelliteExpandModal = ({ imageUrl, onClose }) => {
+  const [zoom, setZoom] = React.useState(1);
+  const [pos, setPos] = React.useState({ x: 0, y: 0 });
+  const dragRef = React.useRef(null);
+
+  const onMouseDown = (e) => {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
+  };
+  const onMouseMove = (e) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+  };
+  const onMouseUp = () => { dragRef.current = null; };
+
+  return (
+    <div className="fixed inset-0 bg-gray-950/90 z-50 flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-900 shrink-0">
+        <span className="text-white text-sm font-mono">Satellite Image — Bultfontein Mine</span>
+        <div className="flex items-center space-x-2">
+          <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-white rounded border border-gray-700">−</button>
+          <span className="text-[11px] font-mono text-gray-300 w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(6, z + 0.25))} className="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-white rounded border border-gray-700">+</button>
+          <button onClick={() => { setZoom(1); setPos({ x: 0, y: 0 }); }} className="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-white rounded border border-gray-700">Reset</button>
+          <button onClick={onClose} className="px-3 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded font-semibold">Close</button>
+        </div>
+      </div>
+      <div
+        className="flex-1 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing"
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+      >
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt="Satellite image expanded"
+            draggable={false}
+            style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`, transition: dragRef.current ? 'none' : 'transform 0.1s' }}
+            className="max-w-none select-none"
+          />
+        )}
+      </div>
+      <div className="px-4 py-2 bg-gray-900 text-center text-[10px] text-gray-500 font-mono shrink-0">
+        Scroll wheel not required — use +/− or drag to pan
+      </div>
     </div>
   );
 };
