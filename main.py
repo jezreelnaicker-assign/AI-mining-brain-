@@ -869,9 +869,17 @@ async def search_recent_scenes(site_id: str, days: int = 90, limit: int = 20):
 
 
 async def get_scene_image(site_id: str, date: str) -> bytes:
-    """Returns a true-color JPEG for the given site/date (YYYY-MM-DD)."""
+    """Returns a true-color JPEG for the given site, as a least-cloudy
+    composite over the 15 days leading up to `date`. Using a window
+    instead of one exact day avoids tile-edge/no-data artifacts and
+    locally cloudy patches that the tile-wide cloud percentage doesn't
+    catch on a small AOI like this one."""
     aoi = SITE_AOIS[site_id]
     token = await _get_copernicus_token()
+
+    from datetime import timedelta
+    end_dt = datetime.strptime(date, "%Y-%m-%d")
+    start_dt = end_dt - timedelta(days=15)
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
@@ -886,8 +894,12 @@ async def get_scene_image(site_id: str, date: str) -> bytes:
                     "data": [{
                         "type": "sentinel-2-l2a",
                         "dataFilter": {
-                            "timeRange": {"from": f"{date}T00:00:00Z", "to": f"{date}T23:59:59Z"},
+                            "timeRange": {
+                                "from": start_dt.strftime("%Y-%m-%dT00:00:00Z"),
+                                "to": end_dt.strftime("%Y-%m-%dT23:59:59Z"),
+                            },
                             "mosaickingOrder": "leastCC",
+                            "maxCloudCoverage": 20,
                         },
                     }],
                 },
@@ -905,10 +917,13 @@ async def get_scene_image(site_id: str, date: str) -> bytes:
 
 
 async def get_latest_scene_meta(site_id: str):
-    scenes = await search_recent_scenes(site_id, days=30, limit=5)
+    scenes = await search_recent_scenes(site_id, days=30, limit=10)
     if not scenes:
         return None
-    return scenes[0]
+    # Prefer the most recent scene with reasonably low cloud cover;
+    # fall back to the newest available if all are cloudy.
+    clear = [s for s in scenes if s["cloud_coverage"] is not None and s["cloud_coverage"] <= 20]
+    return clear[0] if clear else scenes[0]
 
 
 @app.get("/api/satellite/{site_id}/latest-meta")
