@@ -149,22 +149,48 @@ async def init_db():
         """)
 
         # Rehydrate in-memory caches from the database (most recent first)
-        ticket_rows = await conn.fetch("SELECT data FROM tontrac_tickets ORDER BY id DESC LIMIT 200")
-        TONTRAC_TICKETS[:] = [row["data"] for row in ticket_rows]
+        ticket_rows = await conn.fetch("SELECT id, data FROM tontrac_tickets ORDER BY id DESC LIMIT 200")
+        TONTRAC_TICKETS[:] = [_normalize_record(row["data"]) for row in ticket_rows]
 
-        order_rows = await conn.fetch("SELECT data FROM tontrac_orders ORDER BY id DESC LIMIT 200")
-        TONTRAC_ORDERS[:] = [row["data"] for row in order_rows]
+        order_rows = await conn.fetch("SELECT id, data FROM tontrac_orders ORDER BY id DESC LIMIT 200")
+        TONTRAC_ORDERS[:] = [_normalize_record(row["data"]) for row in order_rows]
+
+        # Self-heal: any legacy records that were double-encoded
+        # (stored before this fix) get corrected in place so this
+        # only needs to run once.
+        for row, normalized in zip(ticket_rows, TONTRAC_TICKETS):
+            if isinstance(row["data"], str):
+                await conn.execute("UPDATE tontrac_tickets SET data = $1 WHERE id = $2", normalized, row["id"])
+        for row, normalized in zip(order_rows, TONTRAC_ORDERS):
+            if isinstance(row["data"], str):
+                await conn.execute("UPDATE tontrac_orders SET data = $1 WHERE id = $2", normalized, row["id"])
 
     print(f"DB connected. Loaded {len(TONTRAC_TICKETS)} tickets, {len(TONTRAC_ORDERS)} orders from storage.")
+
+
+def _normalize_record(value):
+    """Legacy rows saved before the double-encoding fix come back as
+    a JSON string instead of a dict -- decode once more if so."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return value
+    return value
 
 
 async def save_tickets_to_db(tickets):
     if not DB_POOL:
         return
     async with DB_POOL.acquire() as conn:
+        # Pass the dict directly -- the jsonb codec (registered in
+        # init_db) already serializes it. Calling json.dumps() here
+        # too was double-encoding every record, storing a JSON
+        # string INSIDE a JSON string, which is why every field
+        # showed as "undefined" on the dashboard.
         await conn.executemany(
-            "INSERT INTO tontrac_tickets (data) VALUES ($1::jsonb)",
-            [(json.dumps(t),) for t in tickets]
+            "INSERT INTO tontrac_tickets (data) VALUES ($1)",
+            [(t,) for t in tickets]
         )
 
 
@@ -173,8 +199,8 @@ async def save_orders_to_db(orders):
         return
     async with DB_POOL.acquire() as conn:
         await conn.executemany(
-            "INSERT INTO tontrac_orders (data) VALUES ($1::jsonb)",
-            [(json.dumps(o),) for o in orders]
+            "INSERT INTO tontrac_orders (data) VALUES ($1)",
+            [(o,) for o in orders]
         )
 
 
