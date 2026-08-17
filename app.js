@@ -4,7 +4,9 @@
 // ============================================================
 
 const AUTH_STORAGE_KEY = 'pmg_ops_authenticated';
-const DASHBOARD_PASSWORD = '14mo17z!';
+// Password is no longer stored here -- checked server-side via
+// /api/auth/login so it's never shipped to the browser or visible
+// in the repo.
 
 // ─── INLINE SVG ICON LIBRARY ────────────────────────────────
 const Icons = {
@@ -478,6 +480,31 @@ const SatelliteExpandModal = ({ imageUrl, onClose }) => {
 // ─── TONTRAC DASHBOARD ────────────────────────────────────────
 // Shows real tickets/orders pushed from TonTrac, live over the
 // websocket, plus whatever was already stored on page load.
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// TicketTimestamp comes as "YYYY-MM-DD HH:MM:SS" already in local
+// SAST time -- format directly, no timezone conversion needed.
+const formatLocalDateTime = (str) => {
+  if (!str) return null;
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return str;
+  const [, y, mo, d, h, mi] = m;
+  return `${parseInt(d)} ${MONTH_NAMES[parseInt(mo) - 1]} ${y}, ${h}:${mi}`;
+};
+
+// OrderDate comes as full ISO UTC ("...Z") -- convert to SAST for
+// display using the browser's timezone database.
+const formatUTCToSAST = (str) => {
+  if (!str) return null;
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return str;
+  return d.toLocaleString('en-ZA', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Africa/Johannesburg',
+  });
+};
+
 const TontracDashboard = ({ tickets, orders }) => {
   return (
     <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
@@ -486,91 +513,71 @@ const TontracDashboard = ({ tickets, orders }) => {
           <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Weighbridge Tickets</div>
           <div className="text-xl font-bold font-display text-gray-800">{tickets.length} received</div>
           <div className="text-[10px] text-gray-400 font-mono mt-1">
-            {tickets.length > 0 ? `Last: ${tickets[0]._received_at}` : 'Waiting for first push...'}
+            {tickets.length > 0 ? `Last: ${formatLocalDateTime(tickets[0].TicketTimestamp) || tickets[0]._received_at}` : 'Waiting for first push...'}
           </div>
         </div>
         <div className="glass-panel p-4 rounded-lg border border-gray-200">
           <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Orders</div>
           <div className="text-xl font-bold font-display text-gray-800">{orders.length} received</div>
           <div className="text-[10px] text-gray-400 font-mono mt-1">
-            {orders.length > 0 ? `Last: ${orders[0]._received_at}` : 'Waiting for first push...'}
+            {orders.length > 0 ? `Last: ${formatUTCToSAST(orders[0].OrderDate) || formatLocalDateTime(orders[0].AuditCreatedOn) || orders[0]._received_at}` : 'Waiting for first push...'}
           </div>
         </div>
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-        {/* Tickets table */}
+        {/* Tickets */}
         <div className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-200 bg-gray-50 text-xs font-bold font-display uppercase text-gray-700">Recent Tickets</div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
             {tickets.length === 0 ? (
               <div className="text-xs text-gray-400 font-mono p-4 text-center">No tickets received yet</div>
             ) : (
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 text-gray-500 sticky top-0">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-mono">Time</th>
-                    <th className="text-left px-3 py-2 font-mono">Ticket No</th>
-                    <th className="text-left px-3 py-2 font-mono">Vehicle</th>
-                    <th className="text-left px-3 py-2 font-mono">Product</th>
-                    <th className="text-right px-3 py-2 font-mono">Net Wt (kg)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.map((t, i) => (
-                    <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-gray-400">{t._received_at}</td>
-                      <td className="px-3 py-2 text-gray-800 font-semibold">{t.TicketNo}</td>
-                      <td className="px-3 py-2 text-gray-600">{t.VehicleRegNo}</td>
-                      <td className="px-3 py-2 text-gray-600">{t.ProductName}</td>
-                      <td className="px-3 py-2 text-right text-gray-800 font-mono">{t.NettWeightKgs}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              tickets.map((t, i) => (
+                <div key={i} className="p-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-800">{t.TicketNo}</span>
+                    <span className="text-[10px] font-mono text-gray-500">{formatLocalDateTime(t.TicketTimestamp) || t._received_at}</span>
+                  </div>
+                  <div className="text-xs text-gray-600">{t.ProductName} — {t.NettWeightKgs != null ? `${t.NettWeightKgs.toLocaleString()} kg` : '—'}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{t.VehicleRegNo} {t.DriverName ? `· ${t.DriverName}` : ''}</div>
+                  {t.DispatchLocationName && (
+                    <div className="text-[10px] text-gray-400 mt-0.5">{t.DispatchLocationName} → {t.ReceiptLocationName}</div>
+                  )}
+                  <div className="text-[9px] text-gray-300 mt-1 font-mono">received {t._received_at}</div>
+                </div>
+              ))
             )}
           </div>
         </div>
 
-        {/* Orders table */}
+        {/* Orders */}
         <div className="flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-200 bg-gray-50 text-xs font-bold font-display uppercase text-gray-700">Recent Orders</div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
             {orders.length === 0 ? (
               <div className="text-xs text-gray-400 font-mono p-4 text-center">No orders received yet</div>
             ) : (
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 text-gray-500 sticky top-0">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-mono">Time</th>
-                    <th className="text-left px-3 py-2 font-mono">Order No</th>
-                    <th className="text-left px-3 py-2 font-mono">Product</th>
-                    <th className="text-left px-3 py-2 font-mono">Dispatch → Receipt</th>
-                    <th className="text-right px-3 py-2 font-mono">Est. Mass</th>
-                    <th className="text-left px-3 py-2 font-mono">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((o, i) => (
-                    <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-gray-400">{o._received_at}</td>
-                      <td className="px-3 py-2 text-gray-800 font-semibold">{o.OrderNo}</td>
-                      <td className="px-3 py-2 text-gray-600">{o.ProductName}</td>
-                      <td className="px-3 py-2 text-gray-600">{o.DispatchLocationName} → {o.ReceiptLocationName}</td>
-                      <td className="px-3 py-2 text-right text-gray-800 font-mono">{o.EstimatedMass}</td>
-                      <td className="px-3 py-2">
-                        {o.IsComplete ? (
-                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-mono">COMPLETE</span>
-                        ) : o.IsOpen ? (
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-mono">OPEN</span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              orders.map((o, i) => (
+                <div key={i} className="p-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-800">{o.OrderNo}</span>
+                    <div className="flex items-center space-x-2">
+                      {o.IsComplete ? (
+                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-mono">COMPLETE</span>
+                      ) : o.IsOpen ? (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-mono">OPEN</span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-mono text-gray-500 mb-1">{formatUTCToSAST(o.OrderDate) || formatLocalDateTime(o.AuditCreatedOn) || o._received_at}</div>
+                  <div className="text-xs text-gray-600">{o.ProductName} — Est. {o.EstimatedMass != null ? `${o.EstimatedMass.toLocaleString()} kg` : '—'}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5 break-words">{o.DispatchLocationName} → {o.ReceiptLocationName}</div>
+                  <div className="text-[9px] text-gray-300 mt-1 font-mono">received {o._received_at}</div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -697,17 +704,30 @@ const PasswordGate = ({ onUnlock }) => {
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState('');
   const [shake, setShake] = React.useState(false);
+  const [checking, setChecking] = React.useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password === DASHBOARD_PASSWORD) {
-      try { sessionStorage.setItem(AUTH_STORAGE_KEY, 'true'); } catch (e) {}
-      setError('');
-      onUnlock();
-    } else {
-      setError('Incorrect password. Please try again.');
-      setShake(true);
-      setTimeout(() => setShake(false), 400);
+    setChecking(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        try { sessionStorage.setItem(AUTH_STORAGE_KEY, 'true'); } catch (e) {}
+        onUnlock();
+      } else {
+        setError('Incorrect password. Please try again.');
+        setShake(true);
+        setTimeout(() => setShake(false), 400);
+      }
+    } catch (err) {
+      setError('Could not reach the server. Try again.');
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -756,9 +776,10 @@ const PasswordGate = ({ onUnlock }) => {
 
             <button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm transition"
+              disabled={checking}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm transition"
             >
-              Access Dashboard
+              {checking ? 'Checking...' : 'Access Dashboard'}
             </button>
           </form>
         </div>
