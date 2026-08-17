@@ -231,8 +231,8 @@ class ConnectionManager:
             "alerts": ALERTS[-50:],
             "ai_analysis": AI_ANALYSIS[-50:],
             "activity_feed": ACTIVITY_FEED[-50:],
-            "tontrac_tickets": TONTRAC_TICKETS[-100:],
-            "tontrac_orders": TONTRAC_ORDERS[-100:]
+            "tontrac_tickets": TONTRAC_TICKETS,
+            "tontrac_orders": TONTRAC_ORDERS
         })
 
 
