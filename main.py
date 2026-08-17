@@ -295,6 +295,20 @@ def seed_data():
 seed_data()
 
 
+class LoginRequest(BaseModel):
+    password: str
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest):
+    correct_password = os.environ.get("DASHBOARD_PASSWORD")
+    if not correct_password:
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Server misconfigured: DASHBOARD_PASSWORD not set"})
+    if req.password == correct_password:
+        return {"status": "success"}
+    return JSONResponse(status_code=401, content={"status": "error", "message": "Incorrect password"})
+
+
 class SystemConfigUpdate(BaseModel):
     stream_type: str
     stream_url: str
@@ -409,7 +423,7 @@ async def receive_tontrac_tickets(payload: Any = Body(...)):
 
 @app.get("/api/tontrac/tickets")
 async def get_tontrac_tickets():
-    return {"status": "success", "count": len(TONTRAC_TICKETS), "tickets": TONTRAC_TICKETS[:100]}
+    return {"status": "success", "count": len(TONTRAC_TICKETS), "tickets": TONTRAC_TICKETS}
 
 
 # ==========================================================
@@ -506,7 +520,7 @@ async def receive_tontrac_orders(payload: Any = Body(...)):
 
 @app.get("/api/tontrac/orders")
 async def get_tontrac_orders():
-    return {"status": "success", "count": len(TONTRAC_ORDERS), "orders": TONTRAC_ORDERS[:100]}
+    return {"status": "success", "count": len(TONTRAC_ORDERS), "orders": TONTRAC_ORDERS}
 
 # ==========================================================
 # CCTV camera stream directory.
