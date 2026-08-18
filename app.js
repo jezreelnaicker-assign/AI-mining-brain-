@@ -505,20 +505,72 @@ const formatUTCToSAST = (str) => {
   });
 };
 
+// Parses "YYYY-MM-DD HH:MM:SS" (local SAST, no timezone suffix) into
+// a real Date the browser can do math with.
+const parseLocalDateTime = (str) => {
+  if (!str) return null;
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return new Date(parseInt(y), parseInt(mo) - 1, parseInt(d), parseInt(h), parseInt(mi), parseInt(s));
+};
+
+// Returns { label, level } describing how long ago the most recent
+// record arrived, so a problem is visible at a glance instead of
+// requiring someone to scroll through records looking for gaps.
+const getFreshness = (timestampStr) => {
+  const d = parseLocalDateTime(timestampStr);
+  if (!d) return { label: 'Unknown', level: 'gray' };
+  const hoursAgo = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+  if (hoursAgo < 0) return { label: 'Just now', level: 'green' };
+  if (hoursAgo < 2) return { label: `${Math.round(hoursAgo * 60)} min ago`, level: 'green' };
+  if (hoursAgo < 24) return { label: `${Math.round(hoursAgo)}h ago`, level: 'amber' };
+  return { label: `${Math.round(hoursAgo / 24)}d ago`, level: 'red' };
+};
+
+const FRESHNESS_STYLES = {
+  green: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-100 text-amber-700 border-amber-200',
+  red: 'bg-red-100 text-red-700 border-red-200',
+  gray: 'bg-gray-100 text-gray-500 border-gray-200',
+};
+
 const TontracDashboard = ({ tickets, orders }) => {
+  const ticketFreshness = tickets.length > 0 ? getFreshness(tickets[0].TicketTimestamp || tickets[0]._received_at) : null;
+  const orderFreshness = orders.length > 0 ? getFreshness(orders[0].OrderDate || orders[0].AuditCreatedOn) : null;
+  const isStale = (ticketFreshness && ticketFreshness.level === 'red') || (orderFreshness && orderFreshness.level === 'red');
+
   return (
     <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+      {isStale && (
+        <div className="shrink-0 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-semibold flex items-center space-x-2">
+          <Icons.Alert className="w-4 h-4" />
+          <span>No new TonTrac data in over a day — worth checking whether the integration has stopped, or whether it's genuinely been quiet on-site.</span>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
         <div className="glass-panel p-4 rounded-lg border border-gray-200">
           <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Weighbridge Tickets</div>
-          <div className="text-xl font-bold font-display text-gray-800">{tickets.length} received</div>
+          <div className="flex items-center space-x-2">
+            <div className="text-xl font-bold font-display text-gray-800">{tickets.length} received</div>
+            {tickets.length > 0 && (() => {
+              const f = getFreshness(tickets[0].TicketTimestamp || tickets[0]._received_at);
+              return <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${FRESHNESS_STYLES[f.level]}`}>{f.label}</span>;
+            })()}
+          </div>
           <div className="text-[10px] text-gray-400 font-mono mt-1">
             {tickets.length > 0 ? `Last: ${formatLocalDateTime(tickets[0].TicketTimestamp) || tickets[0]._received_at}` : 'Waiting for first push...'}
           </div>
         </div>
         <div className="glass-panel p-4 rounded-lg border border-gray-200">
           <div className="text-[10px] font-mono tracking-widest text-gray-400 uppercase">Orders</div>
-          <div className="text-xl font-bold font-display text-gray-800">{orders.length} received</div>
+          <div className="flex items-center space-x-2">
+            <div className="text-xl font-bold font-display text-gray-800">{orders.length} received</div>
+            {orders.length > 0 && (() => {
+              const f = getFreshness(orders[0].OrderDate || orders[0].AuditCreatedOn);
+              return <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${FRESHNESS_STYLES[f.level]}`}>{f.label}</span>;
+            })()}
+          </div>
           <div className="text-[10px] text-gray-400 font-mono mt-1">
             {orders.length > 0 ? `Last: ${formatUTCToSAST(orders[0].OrderDate) || formatLocalDateTime(orders[0].AuditCreatedOn) || orders[0]._received_at}` : 'Waiting for first push...'}
           </div>
